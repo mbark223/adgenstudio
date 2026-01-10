@@ -1,14 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-const sampleImages = [
-  "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1611162618071-b39a2ec055fb?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1611605698335-8b1569810432?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1611605698323-b1e99cfd37ea?w=800&h=800&fit=crop",
-];
-
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
@@ -29,6 +21,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { projectId, sourceAssetId, variationCount, variationTypes, sizes, modelId, prompt, negativePrompt } = req.body;
 
       let actualProjectId = projectId;
+
+      // Get the source asset URL if provided
+      let sourceAssetUrl = null;
+      if (sourceAssetId) {
+        const { data: assetData } = await supabase
+          .from('assets')
+          .select('url')
+          .eq('id', sourceAssetId)
+          .single();
+
+        if (assetData) {
+          sourceAssetUrl = assetData.url;
+        }
+      }
 
       // Create project if not provided
       if (!actualProjectId) {
@@ -76,17 +82,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (jobsError) throw jobsError;
 
-      // Simulate completion immediately
-      for (const job of jobsData) {
-        const imageIndex = Math.floor(Math.random() * sampleImages.length);
-        const url = sampleImages[imageIndex];
+      // Use the source asset URL for variations (since we don't have real AI generation yet)
+      // In production, this would call an actual AI image generation API
+      const variationUrl = sourceAssetUrl || 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&h=800&fit=crop';
 
+      // Complete jobs with the source asset as the "generated" variation
+      for (const job of jobsData) {
         await supabase
           .from('generation_jobs')
           .update({
             status: 'completed',
             progress: 100,
-            result: { url, thumbnailUrl: url, metadata: { generatedAt: new Date().toISOString() } },
+            result: {
+              url: variationUrl,
+              thumbnailUrl: variationUrl,
+              metadata: { generatedAt: new Date().toISOString() }
+            },
             completed_at: new Date().toISOString(),
           })
           .eq('id', job.id);
@@ -99,8 +110,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           size_config: job.size_config,
           model_id: job.model_id,
           prompt: job.prompt,
-          url: url,
-          thumbnail_url: url,
+          url: variationUrl,
+          thumbnail_url: variationUrl,
           type: 'image',
           selected: false,
         });
