@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { availableModels, type AIModelId, type AIModelType } from "@shared/schema";
-import { Clock, DollarSign, Info, Sparkles, Zap, Video, Image } from "lucide-react";
+import { Clock, Info, Sparkles, Zap, Video, Image } from "lucide-react";
 
 interface ModelSelectorProps {
   selectedModelId: AIModelId | null;
@@ -103,10 +103,6 @@ export function ModelSelector({ selectedModelId, onModelChange, assetType }: Mod
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           <span>~{model.avgGenerationTime}s</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="h-3 w-3" />
-                          <span>${model.costPerGeneration.toFixed(2)}/gen</span>
                         </div>
                       </div>
                     </div>
