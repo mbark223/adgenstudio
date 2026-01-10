@@ -1,20 +1,71 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// Sample placeholder images for demo
-const sampleImages = [
-  "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1611162618071-b39a2ec055fb?w=800&h=800&fit=crop",
-];
-
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) {
-    throw new Error(`Missing env vars: SUPABASE_URL=${!!url}, SUPABASE_SERVICE_KEY=${!!key}`);
-  }
+  if (!url || !key) throw new Error('Missing Supabase env vars');
   return createClient(url, key);
+}
+
+// Disable body parsing to handle multipart form data manually
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+// Simple multipart form data parser
+async function parseMultipartForm(req: VercelRequest): Promise<{ file: Buffer; filename: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('error', reject);
+    req.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      const contentType = req.headers['content-type'] || '';
+      const boundary = contentType.split('boundary=')[1];
+
+      if (!boundary) {
+        reject(new Error('No boundary found in content-type'));
+        return;
+      }
+
+      const parts = buffer.toString('binary').split(`--${boundary}`);
+
+      for (const part of parts) {
+        if (part.includes('filename=')) {
+          // Extract filename
+          const filenameMatch = part.match(/filename="([^"]+)"/);
+          const filename = filenameMatch ? filenameMatch[1] : 'upload';
+
+          // Extract content type
+          const typeMatch = part.match(/Content-Type:\s*([^\r\n]+)/i);
+          const mimeType = typeMatch ? typeMatch[1].trim() : 'application/octet-stream';
+
+          // Extract file content (after double CRLF)
+          const headerEnd = part.indexOf('\r\n\r\n');
+          if (headerEnd !== -1) {
+            let fileContent = part.slice(headerEnd + 4);
+            // Remove trailing boundary markers
+            if (fileContent.endsWith('\r\n')) {
+              fileContent = fileContent.slice(0, -2);
+            }
+
+            resolve({
+              file: Buffer.from(fileContent, 'binary'),
+              filename,
+              mimeType,
+            });
+            return;
+          }
+        }
+      }
+
+      reject(new Error('No file found in form data'));
+    });
+  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -22,31 +73,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
     if (req.method === 'POST') {
       const supabase = getSupabase();
 
+      // Parse multipart form data
+      const { file, filename, mimeType } = await parseMultipartForm(req);
+
+      // Generate unique filename
+      const ext = filename.split('.').pop() || 'png';
+      const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+      const filePath = `uploads/${uniqueFilename}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('assets')
+        .upload(filePath, file, {
+          contentType: mimeType,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('assets')
+        .getPublicUrl(filePath);
+
+      // Determine asset type
+      const isVideo = mimeType.startsWith('video/');
+      const assetType = isVideo ? 'video' : 'image';
+
+      // Save asset record to database
       const { data, error } = await supabase
         .from('assets')
         .insert({
-          filename: 'uploaded_asset.png',
-          type: 'image',
-          mime_type: 'image/png',
-          size: 1024 * 500,
+          filename: filename,
+          type: assetType,
+          mime_type: mimeType,
+          size: file.length,
           width: 1920,
           height: 1080,
-          url: sampleImages[0],
-          thumbnail_url: sampleImages[0],
+          url: publicUrl,
+          thumbnail_url: publicUrl,
         })
         .select()
         .single();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('Database error:', error);
         throw error;
       }
 
