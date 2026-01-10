@@ -6,6 +6,13 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
+import multer from "multer";
+
+// Configure multer for memory storage (we won't save files for demo)
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
 
 // Sample variation images (we'll use placeholder URLs for demo)
 const sampleImages = [
@@ -97,17 +104,23 @@ export async function registerRoutes(
   });
 
   // Asset upload
-  app.post("/api/upload", async (req, res) => {
+  app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
-      // For demo purposes, create a mock asset
-      // In production, you'd handle file upload with multer
+      const file = req.file;
+      
+      // Determine asset type from mimetype
+      const isVideo = file?.mimetype?.startsWith("video/");
+      const assetType = isVideo ? "video" : "image";
+      
+      // For demo purposes, create a mock asset with uploaded file info
       const mockAsset = await storage.createAsset({
-        filename: "uploaded_asset.png",
-        type: "image",
-        mimeType: "image/png",
-        size: 1024 * 500,
+        filename: file?.originalname || "uploaded_asset.png",
+        type: assetType,
+        mimeType: file?.mimetype || "image/png",
+        size: file?.size || 1024 * 500,
         width: 1920,
         height: 1080,
+        duration: isVideo ? 30 : undefined,
         url: sampleImages[0],
         thumbnailUrl: sampleImages[0],
       });
