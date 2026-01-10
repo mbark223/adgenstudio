@@ -1,22 +1,28 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../_lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) throw new Error('Missing Supabase env vars');
+  return createClient(url, key);
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { id } = req.query;
-
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Project ID required' });
   }
 
   try {
+    const supabase = getSupabase();
+
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('projects')
@@ -25,9 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          return res.status(404).json({ error: 'Project not found' });
-        }
+        if (error.code === 'PGRST116') return res.status(404).json({ error: 'Project not found' });
         throw error;
       }
 
@@ -73,9 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          return res.status(404).json({ error: 'Project not found' });
-        }
+        if (error.code === 'PGRST116') return res.status(404).json({ error: 'Project not found' });
         throw error;
       }
 
@@ -99,17 +101,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'DELETE') {
-      // Delete related variations and jobs first
       await supabase.from('variations').delete().eq('project_id', id);
       await supabase.from('generation_jobs').delete().eq('project_id', id);
-
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('projects').delete().eq('id', id);
       if (error) throw error;
-
       return res.status(204).end();
     }
 

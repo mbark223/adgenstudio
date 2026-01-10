@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from './_lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 // Sample placeholder images for demo
 const sampleImages = [
@@ -7,6 +7,15 @@ const sampleImages = [
   "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=800&h=800&fit=crop",
   "https://images.unsplash.com/photo-1611162618071-b39a2ec055fb?w=800&h=800&fit=crop",
 ];
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) {
+    throw new Error(`Missing env vars: SUPABASE_URL=${!!url}, SUPABASE_SERVICE_KEY=${!!key}`);
+  }
+  return createClient(url, key);
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,8 +28,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'POST') {
-      // For demo purposes, create a mock asset
-      // In production, you'd upload to Supabase Storage
+      const supabase = getSupabase();
+
       const { data, error } = await supabase
         .from('assets')
         .insert({
@@ -36,7 +45,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       const asset = {
         id: data.id,
@@ -57,6 +69,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error: any) {
     console.error('Upload API error:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return res.status(500).json({
+      error: error.message || 'Internal server error',
+      details: error.toString()
+    });
   }
 }

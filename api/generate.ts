@@ -1,41 +1,32 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from './_lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
-// Sample variation images
 const sampleImages = [
   "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&h=800&fit=crop",
   "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=800&h=800&fit=crop",
   "https://images.unsplash.com/photo-1611162618071-b39a2ec055fb?w=800&h=800&fit=crop",
   "https://images.unsplash.com/photo-1611605698335-8b1569810432?w=800&h=800&fit=crop",
   "https://images.unsplash.com/photo-1611605698323-b1e99cfd37ea?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1563986768494-4dee2763ff3f?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1557838923-2985c318be48?w=800&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1551650975-87deedd944c3?w=800&h=800&fit=crop",
 ];
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) throw new Error('Missing Supabase env vars');
+  return createClient(url, key);
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
     if (req.method === 'POST') {
-      const {
-        projectId,
-        sourceAssetId,
-        variationCount,
-        variationTypes,
-        sizes,
-        modelId,
-        prompt,
-        negativePrompt,
-      } = req.body;
+      const supabase = getSupabase();
+      const { projectId, sourceAssetId, variationCount, variationTypes, sizes, modelId, prompt, negativePrompt } = req.body;
 
       let actualProjectId = projectId;
 
@@ -85,25 +76,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (jobsError) throw jobsError;
 
-      // Simulate generation immediately (simplified for serverless)
-      // In production, you'd use a background job queue
+      // Simulate completion immediately
       for (const job of jobsData) {
-        await simulateJob(job.id, actualProjectId);
+        const imageIndex = Math.floor(Math.random() * sampleImages.length);
+        const url = sampleImages[imageIndex];
+
+        await supabase
+          .from('generation_jobs')
+          .update({
+            status: 'completed',
+            progress: 100,
+            result: { url, thumbnailUrl: url, metadata: { generatedAt: new Date().toISOString() } },
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', job.id);
+
+        await supabase.from('variations').insert({
+          project_id: actualProjectId,
+          job_id: job.id,
+          source_asset_id: job.source_asset_id,
+          variation_index: job.variation_index,
+          size_config: job.size_config,
+          model_id: job.model_id,
+          prompt: job.prompt,
+          url: url,
+          thumbnail_url: url,
+          type: 'image',
+          selected: false,
+        });
       }
 
       const jobs = jobsData.map(j => ({
         id: j.id,
         projectId: j.project_id,
-        sourceAssetId: j.source_asset_id,
-        variationIndex: j.variation_index,
-        sizeConfig: j.size_config,
-        modelId: j.model_id,
-        prompt: j.prompt,
-        negativePrompt: j.negative_prompt,
-        variationTypes: j.variation_types,
-        status: j.status,
-        progress: j.progress,
-        createdAt: j.created_at,
+        status: 'completed',
+        progress: 100,
       }));
 
       return res.status(201).json({ projectId: actualProjectId, jobs });
@@ -113,65 +120,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('Generate API error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-}
-
-async function simulateJob(jobId: string, projectId: string) {
-  try {
-    // Update to processing
-    await supabase
-      .from('generation_jobs')
-      .update({ status: 'processing', progress: 50 })
-      .eq('id', jobId);
-
-    // Get job details
-    const { data: job } = await supabase
-      .from('generation_jobs')
-      .select('*')
-      .eq('id', jobId)
-      .single();
-
-    if (!job) return;
-
-    // Complete with result
-    const imageIndex = Math.floor(Math.random() * sampleImages.length);
-    const url = sampleImages[imageIndex];
-
-    await supabase
-      .from('generation_jobs')
-      .update({
-        status: 'completed',
-        progress: 100,
-        result: {
-          url,
-          thumbnailUrl: url,
-          metadata: { generatedAt: new Date().toISOString() },
-        },
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', jobId);
-
-    // Create variation from completed job
-    await supabase
-      .from('variations')
-      .insert({
-        project_id: projectId,
-        job_id: jobId,
-        source_asset_id: job.source_asset_id,
-        variation_index: job.variation_index,
-        size_config: job.size_config,
-        model_id: job.model_id,
-        prompt: job.prompt,
-        url: url,
-        thumbnail_url: url,
-        type: 'image',
-        selected: false,
-      });
-  } catch (error) {
-    console.error('Job simulation error:', error);
-    await supabase
-      .from('generation_jobs')
-      .update({ status: 'failed', error: 'Simulation failed' })
-      .eq('id', jobId);
   }
 }
