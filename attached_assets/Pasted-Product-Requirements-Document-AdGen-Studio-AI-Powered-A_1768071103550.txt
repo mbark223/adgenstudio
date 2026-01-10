@@ -1,0 +1,1557 @@
+Product Requirements Document: AdGen Studio
+AI-Powered Ad Variation Generator
+Version: 1.1
+Last Updated: January 2025
+Tech Stack: Next.js 14 (App Router), TypeScript, shadcn/ui, Framer Motion, Tailwind CSS
+
+1. Product Overview
+1.1 Vision
+AdGen Studio is a web-based tool that empowers advertisers to generate multiple creative variations from existing static images and video ads using cutting-edge AI models. The platform connects to multiple AI APIs (Veo, Replicate, Runway, Stability AI, etc.) to produce scaled creative output across multiple sizes and formats simultaneously.
+1.2 Problem Statement
+Creating ad variations is time-consuming and expensive. Advertisers need to test multiple creative concepts across various platforms (Meta, TikTok, Snapchat, Moloco, Google UAC), each with different size requirements. Manual variation creation limits testing velocity and creative exploration.
+1.3 Solution
+A unified interface that accepts source assets, applies AI-powered transformations, and outputs multiple variations across multiple sizes—all rendered on a single screen for rapid review, feedback-driven iteration, and export with standardized naming conventions.
+1.4 Supported Ad Platforms (Phase 1)
+PlatformPrimary Use CaseKey FormatsMetaPaid Social (Facebook, Instagram)Feed, Stories, ReelsTikTokShort-form Video AdsIn-Feed, TopView, SparkSnapchatAR/Story AdsSnap Ads, Story Ads, CollectionMolocoProgrammatic Mobile DSPAll standard mobile sizesGoogle UACUniversal App CampaignsLandscape, Portrait, Square
+
+2. User Stories
+Core User Stories
+
+As an advertiser, I want to upload a static image and generate up to 10 AI-powered variations so I can test different creative approaches.
+As an advertiser, I want to upload a video ad and create variations with different backgrounds, styles, or effects using AI video models.
+As an advertiser, I want to select multiple output sizes for Meta, TikTok, Snapchat, Moloco, and Google UAC and have all variations generated in each size simultaneously.
+As an advertiser, I want to see all generated variations on a single screen in a grid layout for easy comparison.
+As an advertiser, I want to select variations with checkboxes and provide feedback/direction to generate refined iterations based on what's working.
+As an advertiser, I want to define a naming convention template so all exported assets follow consistent nomenclature for easy organization and platform upload.
+As an advertiser, I want to download individual variations or bulk download all variations as a ZIP file with proper naming.
+As an advertiser, I want to export variations directly formatted for specific platforms (Meta, TikTok, etc.) with correct specs.
+As an advertiser, I want to save my projects and return to them later.
+
+Future User Stories (Phase 2)
+
+As an advertiser, I want to connect my Meta/TikTok/Snapchat/Moloco ad accounts to pull performance data.
+As an advertiser, I want the system to automatically identify top-performing creatives and generate variations of winners.
+As an advertiser, I want AI-suggested variation strategies based on platform best practices.
+
+
+3. Feature Specifications
+3.1 Asset Upload Module
+typescriptinterface AssetUpload {
+  supportedImageFormats: ['jpg', 'jpeg', 'png', 'webp'];
+  supportedVideoFormats: ['mp4', 'mov', 'webm'];
+  maxImageSize: '20MB';
+  maxVideoSize: '500MB';
+  maxVideoDuration: '60 seconds';
+}
+UI Requirements:
+
+Drag-and-drop upload zone with visual feedback
+Upload progress indicator with percentage
+Asset preview after upload (image thumbnail or video player)
+Asset metadata display (dimensions, file size, duration for video)
+Option to upload multiple source assets for batch processing
+
+3.2 Variation Configuration Panel
+Variation Count Selector:
+
+Slider or number input: 1-10 variations
+Default: 5 variations
+
+Variation Types (user selects one or more):
+TypeDescriptionApplicable ToBackground SwapAI replaces/modifies backgroundImage, VideoStyle TransferApply artistic styles (cinematic, vibrant, minimal)Image, VideoColor GradingAI-powered color adjustmentsImage, VideoElement AnimationAnimate static elements (image-to-video)Image onlyText Overlay VariationsGenerate text placement/style variationsImage, VideoAspect Ratio AdaptIntelligent cropping/extension for different sizesImage, VideoScene ExtensionOutpaint/extend scene beyond original frameImageMotion EnhancementAdd camera movement, parallax effectsVideo
+Prompt/Direction Input:
+
+Text area for creative direction (e.g., "Make background more tropical, add palm trees")
+Preset prompt templates dropdown
+Negative prompt field (what to avoid)
+
+3.3 Size Configuration Panel
+Preset Size Groups by Platform:
+typescriptconst platformPresets = {
+  meta: {
+    displayName: 'Meta (Facebook/Instagram)',
+    sizes: [
+      { name: 'Feed Square', width: 1080, height: 1080, placement: 'Feed' },
+      { name: 'Feed Portrait', width: 1080, height: 1350, placement: 'Feed' },
+      { name: 'Story/Reel', width: 1080, height: 1920, placement: 'Stories/Reels' },
+      { name: 'Feed Landscape', width: 1200, height: 628, placement: 'Feed' },
+      { name: 'Carousel', width: 1080, height: 1080, placement: 'Feed' },
+    ],
+  },
+  tiktok: {
+    displayName: 'TikTok',
+    sizes: [
+      { name: 'In-Feed Video', width: 1080, height: 1920, placement: 'For You Feed' },
+      { name: 'TopView', width: 1080, height: 1920, placement: 'TopView' },
+      { name: 'Spark Ad', width: 1080, height: 1920, placement: 'Organic Style' },
+      { name: 'Square Option', width: 1080, height: 1080, placement: 'Feed' },
+    ],
+  },
+  snapchat: {
+    displayName: 'Snapchat',
+    sizes: [
+      { name: 'Snap Ad', width: 1080, height: 1920, placement: 'Between Stories' },
+      { name: 'Story Ad', width: 1080, height: 1920, placement: 'Discover' },
+      { name: 'Collection Ad Tile', width: 360, height: 600, placement: 'Collection' },
+      { name: 'Collection Ad Hero', width: 1080, height: 1920, placement: 'Collection' },
+      { name: 'Commercial', width: 1080, height: 1920, placement: 'Shows' },
+    ],
+  },
+  moloco: {
+    displayName: 'Moloco',
+    sizes: [
+      { name: 'Interstitial Portrait', width: 1080, height: 1920, placement: 'Interstitial' },
+      { name: 'Interstitial Landscape', width: 1920, height: 1080, placement: 'Interstitial' },
+      { name: 'Banner Large', width: 320, height: 480, placement: 'Banner' },
+      { name: 'Banner Medium', width: 300, height: 250, placement: 'MREC' },
+      { name: 'Banner Small', width: 320, height: 50, placement: 'Banner' },
+      { name: 'Native Square', width: 1200, height: 1200, placement: 'Native' },
+      { name: 'Native Landscape', width: 1200, height: 628, placement: 'Native' },
+    ],
+  },
+  googleUAC: {
+    displayName: 'Google UAC (App Campaigns)',
+    sizes: [
+      { name: 'Landscape Video', width: 1920, height: 1080, placement: 'YouTube/Display' },
+      { name: 'Portrait Video', width: 1080, height: 1920, placement: 'YouTube Shorts/Display' },
+      { name: 'Square Video', width: 1080, height: 1080, placement: 'Display/Discovery' },
+      { name: 'Landscape Image', width: 1200, height: 628, placement: 'Display' },
+      { name: 'Square Image', width: 1200, height: 1200, placement: 'Display' },
+      { name: 'Portrait Image', width: 1080, height: 1920, placement: 'Display' },
+    ],
+  },
+};
+UI Requirements:
+
+Checkbox grid for size selection
+"Select All" for each platform group
+Custom size input (width x height)
+Visual preview of selected aspect ratios
+Maximum of 6 sizes per generation batch (to manage API costs)
+
+3.4 AI Model Selection
+Available Models:
+typescriptinterface AIModel {
+  id: string;
+  name: string;
+  provider: string;
+  type: 'image' | 'video' | 'image-to-video';
+  capabilities: string[];
+  avgGenerationTime: number; // seconds
+  costPerGeneration: number; // USD estimate
+}
+
+const availableModels: AIModel[] = [
+  {
+    id: 'veo-2',
+    name: 'Google Veo 2',
+    provider: 'Google AI',
+    type: 'video',
+    capabilities: ['text-to-video', 'image-to-video', 'style-transfer'],
+    avgGenerationTime: 120,
+    costPerGeneration: 0.50,
+  },
+  {
+    id: 'runway-gen3',
+    name: 'Runway Gen-3 Alpha',
+    provider: 'Runway',
+    type: 'image-to-video',
+    capabilities: ['image-to-video', 'motion-brush', 'camera-control'],
+    avgGenerationTime: 90,
+    costPerGeneration: 0.25,
+  },
+  {
+    id: 'stability-sd3',
+    name: 'Stable Diffusion 3',
+    provider: 'Stability AI',
+    type: 'image',
+    capabilities: ['text-to-image', 'image-to-image', 'inpainting', 'outpainting'],
+    avgGenerationTime: 15,
+    costPerGeneration: 0.03,
+  },
+  {
+    id: 'flux-pro',
+    name: 'Flux Pro',
+    provider: 'Black Forest Labs',
+    type: 'image',
+    capabilities: ['text-to-image', 'image-to-image', 'high-fidelity'],
+    avgGenerationTime: 20,
+    costPerGeneration: 0.05,
+  },
+  {
+    id: 'replicate-wan',
+    name: 'Wan 2.1',
+    provider: 'Replicate',
+    type: 'image-to-video',
+    capabilities: ['image-to-video', 'text-to-video'],
+    avgGenerationTime: 60,
+    costPerGeneration: 0.10,
+  },
+  {
+    id: 'kling',
+    name: 'Kling AI',
+    provider: 'Kuaishou',
+    type: 'video',
+    capabilities: ['text-to-video', 'image-to-video', 'motion-brush'],
+    avgGenerationTime: 90,
+    costPerGeneration: 0.20,
+  },
+  {
+    id: 'luma-dream-machine',
+    name: 'Luma Dream Machine',
+    provider: 'Luma AI',
+    type: 'image-to-video',
+    capabilities: ['image-to-video', 'camera-motion'],
+    avgGenerationTime: 60,
+    costPerGeneration: 0.15,
+  },
+];
+UI Requirements:
+
+Model selector dropdown grouped by type (Image Models, Video Models, Image-to-Video)
+Model info tooltip showing capabilities, avg time, estimated cost
+Auto-suggest best model based on source asset type and variation type selected
+Cost estimator showing total estimated cost for batch
+
+3.5 Generation Queue & Progress
+Queue Management:
+typescriptinterface GenerationJob {
+  id: string;
+  sourceAssetId: string;
+  variationIndex: number;
+  sizeConfig: { width: number; height: number; name: string };
+  modelId: string;
+  prompt: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  progress: number; // 0-100
+  result?: {
+    url: string;
+    thumbnailUrl: string;
+    metadata: Record<string, any>;
+  };
+  error?: string;
+  createdAt: Date;
+  completedAt?: Date;
+}
+UI Requirements:
+
+Real-time progress bar for each generation
+Queue position indicator
+Estimated time remaining
+Cancel individual job or cancel all
+Retry failed generations
+Toast notifications for completions/failures
+
+3.6 Results Grid View
+Layout:
+┌─────────────────────────────────────────────────────────────────┐
+│  [Source Asset Preview]    [Generation Controls]                │
+├─────────────────────────────────────────────────────────────────┤
+│  Size Filter: [All] [1080x1080] [1080x1920] [1920x1080] ...    │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │Variation │  │Variation │  │Variation │  │Variation │        │
+│  │    1     │  │    2     │  │    3     │  │    4     │        │
+│  │ 1080x1080│  │ 1080x1080│  │ 1080x1080│  │ 1080x1080│        │
+│  │ [⬇️][👁️][❌]│  │ [⬇️][👁️][❌]│  │ [⬇️][👁️][❌]│  │ [⬇️][👁️][❌]│        │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │Variation │  │Variation │  │Variation │  │Variation │        │
+│  │    5     │  │    6     │  │    7     │  │    8     │        │
+│  │ 1080x1080│  │ 1080x1080│  │ 1080x1080│  │ 1080x1080│        │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
+├─────────────────────────────────────────────────────────────────┤
+│  [Select All] [Download Selected (ZIP)]  [Save to Project]     │
+└─────────────────────────────────────────────────────────────────┘
+UI Requirements:
+
+Responsive grid: 4 columns on desktop, 2 on tablet, 1 on mobile
+Hover state shows action buttons (download, preview, delete, regenerate)
+Click to expand into lightbox/modal view
+Side-by-side comparison mode (select 2-4 variations to compare)
+Filter by size, filter by variation type
+Sort by generation time, by variation number
+Checkbox selection for bulk actions
+Lazy loading for large result sets
+Framer Motion animations for grid item entrance
+
+Preview Modal:
+
+Full-resolution preview
+Video playback controls (if video)
+Download button
+Regenerate with tweaks button
+Copy prompt used
+View generation metadata
+
+3.7 Variation Feedback & Iteration System
+Feedback-Driven Iteration Flow:
+┌─────────────────────────────────────────────────────────────────┐
+│  RESULTS GRID                                                   │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │ ☑ Var 1  │  │ ☐ Var 2  │  │ ☑ Var 3  │  │ ☐ Var 4  │        │
+│  │  👍 Good │  │          │  │  👍 Good │  │          │        │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
+├─────────────────────────────────────────────────────────────────┤
+│  FEEDBACK PANEL (appears when variations selected)              │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │ Selected: 2 variations                                      ││
+│  │                                                             ││
+│  │ What do you like about these? (optional)                    ││
+│  │ ┌─────────────────────────────────────────────────────────┐ ││
+│  │ │ The tropical background works well, keep the palm trees │ ││
+│  │ └─────────────────────────────────────────────────────────┘ ││
+│  │                                                             ││
+│  │ What should change? (optional)                              ││
+│  │ ┌─────────────────────────────────────────────────────────┐ ││
+│  │ │ Make colors more vibrant, add sunset lighting           │ ││
+│  │ └─────────────────────────────────────────────────────────┘ ││
+│  │                                                             ││
+│  │ Quick Tags: [More Vibrant] [Darker] [Lighter] [More Motion] ││
+│  │             [Less Busy] [Different BG] [Keep Style]         ││
+│  │                                                             ││
+│  │ Generate [5 ▼] new variations based on feedback             ││
+│  │                                                             ││
+│  │ [Generate Iterations]  [Clear Selection]                    ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+Feedback Data Structure:
+typescriptinterface VariationFeedback {
+  variationIds: string[];           // Selected variation IDs
+  positiveNotes: string;            // What user likes
+  changeRequests: string;           // What should change
+  quickTags: FeedbackTag[];         // Pre-defined quick tags
+  iterationCount: number;           // How many new variations (1-10)
+  inheritSettings: {
+    keepModel: boolean;
+    keepSizes: boolean;
+    keepBasePrompt: boolean;
+  };
+}
+
+type FeedbackTag = 
+  | 'more_vibrant'
+  | 'darker_mood'
+  | 'lighter_mood'
+  | 'more_motion'
+  | 'less_motion'
+  | 'less_busy'
+  | 'different_background'
+  | 'keep_style'
+  | 'more_contrast'
+  | 'softer_colors'
+  | 'more_energy'
+  | 'more_calm';
+
+interface IterationJob extends GenerationJob {
+  parentVariationIds: string[];     // Source variations for iteration
+  feedback: VariationFeedback;
+  iterationGeneration: number;      // 1st, 2nd, 3rd iteration, etc.
+}
+UI Requirements:
+
+Checkbox on each variation card for multi-select
+Floating feedback panel appears when 1+ variations selected
+Quick tag buttons for common feedback (toggleable)
+Free-text fields for detailed positive/negative feedback
+Iteration count selector (1-10)
+"Generate Iterations" button disabled until at least one feedback input provided
+Visual lineage: show which variations are iterations of which (tree view option)
+Iteration badge showing generation number (Original → Iteration 1 → Iteration 2)
+
+Iteration Prompt Construction:
+typescriptfunction buildIterationPrompt(feedback: VariationFeedback, originalPrompt: string): string {
+  let iterationPrompt = originalPrompt;
+  
+  if (feedback.positiveNotes) {
+    iterationPrompt += ` Maintain these aspects: ${feedback.positiveNotes}.`;
+  }
+  
+  if (feedback.changeRequests) {
+    iterationPrompt += ` Modify the following: ${feedback.changeRequests}.`;
+  }
+  
+  const tagInstructions = feedback.quickTags.map(tag => tagToInstruction(tag));
+  if (tagInstructions.length > 0) {
+    iterationPrompt += ` Apply these adjustments: ${tagInstructions.join(', ')}.`;
+  }
+  
+  return iterationPrompt;
+}
+3.8 Ad Naming Convention System
+Nomenclature Builder:
+┌─────────────────────────────────────────────────────────────────┐
+│  NAMING CONVENTION SETTINGS                                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Build your naming template by adding components:               │
+│                                                                 │
+│  Template: [{client}_{campaign}_{concept}_{variation}_{size}_{platform}_{date}]
+│                                                                 │
+│  Available Components (drag to reorder):                        │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │ [+ Client]     [+ Campaign]    [+ Concept]    [+ Variation] ││
+│  │ [+ Size]       [+ Platform]    [+ Date]       [+ Version]   ││
+│  │ [+ Format]     [+ Aspect]      [+ Custom...]                ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                                                                 │
+│  Separator: [ _ ▼ ]  (options: _ , - , . , __)                  │
+│                                                                 │
+│  Component Values:                                              │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │ Client:      [HardRockBet    ]                              ││
+│  │ Campaign:    [Q1_Acquisition ]                              ││
+│  │ Concept:     [TropicalVibes  ]                              ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                                                                 │
+│  Preview:                                                       │
+│  HardRockBet_Q1_Acquisition_TropicalVibes_V01_1080x1920_TikTok_20250110.mp4
+│  HardRockBet_Q1_Acquisition_TropicalVibes_V02_1080x1080_Meta_20250110.mp4
+│                                                                 │
+│  [Save as Default]  [Save as Template: ________]                │
+└─────────────────────────────────────────────────────────────────┘
+Naming Configuration:
+typescriptinterface NamingConvention {
+  id: string;
+  name: string;                     // Template name (e.g., "Standard UAC Naming")
+  components: NamingComponent[];    // Ordered list of components
+  separator: '_' | '-' | '.' | '__';
+  caseStyle: 'original' | 'lowercase' | 'uppercase' | 'camelCase' | 'PascalCase';
+  maxLength?: number;               // Truncate if exceeds
+  dateFormat: 'YYYYMMDD' | 'MMDDYYYY' | 'DDMMYYYY' | 'YYYY-MM-DD';
+}
+
+interface NamingComponent {
+  type: NamingComponentType;
+  value?: string;                   // For static values (client, campaign, etc.)
+  prefix?: string;                  // Optional prefix (e.g., "V" for version)
+  padLength?: number;               // Zero-padding (e.g., V01 vs V1)
+}
+
+type NamingComponentType =
+  | 'client'           // Static: company/client name
+  | 'campaign'         // Static: campaign name
+  | 'concept'          // Static: creative concept name
+  | 'variation'        // Auto: V01, V02, etc.
+  | 'iteration'        // Auto: Iter1, Iter2 (for feedback iterations)
+  | 'size'             // Auto: 1080x1920, 1080x1080
+  | 'sizeAlias'        // Auto: Story, Square, Feed (friendly name)
+  | 'platform'         // Auto: Meta, TikTok, Snap, Moloco, UAC
+  | 'placement'        // Auto: Feed, Stories, InFeed, etc.
+  | 'date'             // Auto: based on dateFormat
+  | 'timestamp'        // Auto: Unix timestamp
+  | 'format'           // Auto: mp4, jpg, png
+  | 'aspectRatio'      // Auto: 9x16, 1x1, 16x9
+  | 'model'            // Auto: AI model used (veo2, runway, etc.)
+  | 'custom';          // User-defined static text
+
+// Pre-built templates
+const namingTemplates: NamingConvention[] = [
+  {
+    id: 'standard',
+    name: 'Standard (Client_Campaign_Variation_Size)',
+    components: [
+      { type: 'client' },
+      { type: 'campaign' },
+      { type: 'variation', prefix: 'V', padLength: 2 },
+      { type: 'size' },
+    ],
+    separator: '_',
+    caseStyle: 'original',
+    dateFormat: 'YYYYMMDD',
+  },
+  {
+    id: 'platform-first',
+    name: 'Platform First (Platform_Client_Concept_Size_Date)',
+    components: [
+      { type: 'platform' },
+      { type: 'client' },
+      { type: 'concept' },
+      { type: 'sizeAlias' },
+      { type: 'date' },
+    ],
+    separator: '_',
+    caseStyle: 'original',
+    dateFormat: 'YYYYMMDD',
+  },
+  {
+    id: 'detailed',
+    name: 'Detailed (Client_Campaign_Concept_Platform_Placement_Size_Variation_Date)',
+    components: [
+      { type: 'client' },
+      { type: 'campaign' },
+      { type: 'concept' },
+      { type: 'platform' },
+      { type: 'placement' },
+      { type: 'size' },
+      { type: 'variation', prefix: 'V', padLength: 2 },
+      { type: 'date' },
+    ],
+    separator: '_',
+    caseStyle: 'original',
+    dateFormat: 'YYYYMMDD',
+  },
+];
+Filename Generation Function:
+typescriptfunction generateFilename(
+  generation: Generation,
+  convention: NamingConvention,
+  context: NamingContext
+): string {
+  const parts: string[] = [];
+  
+  for (const component of convention.components) {
+    let value = '';
+    
+    switch (component.type) {
+      case 'client':
+        value = context.client || 'Client';
+        break;
+      case 'campaign':
+        value = context.campaign || 'Campaign';
+        break;
+      case 'concept':
+        value = context.concept || 'Concept';
+        break;
+      case 'variation':
+        const varNum = (generation.variationIndex + 1).toString();
+        value = (component.prefix || '') + varNum.padStart(component.padLength || 1, '0');
+        break;
+      case 'size':
+        value = `${generation.width}x${generation.height}`;
+        break;
+      case 'sizeAlias':
+        value = generation.sizeName.replace(/\s+/g, '');
+        break;
+      case 'platform':
+        value = context.platform || 'Multi';
+        break;
+      case 'date':
+        value = formatDate(new Date(), convention.dateFormat);
+        break;
+      // ... handle other types
+    }
+    
+    if (value) {
+      parts.push(applyCaseStyle(value, convention.caseStyle));
+    }
+  }
+  
+  const extension = generation.outputUrl?.split('.').pop() || 'mp4';
+  let filename = parts.join(convention.separator);
+  
+  if (convention.maxLength && filename.length > convention.maxLength) {
+    filename = filename.substring(0, convention.maxLength);
+  }
+  
+  return `${filename}.${extension}`;
+}
+3.9 Export & Download System
+Export Interface:
+┌─────────────────────────────────────────────────────────────────┐
+│  EXPORT CENTER                                                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Selected: 24 variations across 4 sizes                         │
+│                                                                 │
+│  ┌─ NAMING ──────────────────────────────────────────────────┐  │
+│  │ Convention: [Standard (Client_Campaign_V_Size) ▼]         │  │
+│  │ Client:     [HardRockBet    ]                             │  │
+│  │ Campaign:   [Q1_FL_Acq      ]                             │  │
+│  │ Concept:    [TropicalVibes  ]                             │  │
+│  │                                                           │  │
+│  │ Preview: HardRockBet_Q1_FL_Acq_TropicalVibes_V01_1080x1920.mp4
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌─ EXPORT OPTIONS ──────────────────────────────────────────┐  │
+│  │                                                           │  │
+│  │ Export Type:                                              │  │
+│  │ ○ All Selected (24 files)                                 │  │
+│  │ ○ By Platform:                                            │  │
+│  │   ☑ Meta (8 files)      ☑ TikTok (4 files)               │  │
+│  │   ☑ Snapchat (4 files)  ☑ Moloco (4 files)               │  │
+│  │   ☑ Google UAC (4 files)                                  │  │
+│  │ ○ By Size:                                                │  │
+│  │   ☑ 1080x1920  ☑ 1080x1080  ☑ 1200x628  ☐ 300x250       │  │
+│  │                                                           │  │
+│  │ Folder Structure:                                         │  │
+│  │ ○ Flat (all files in one folder)                         │  │
+│  │ ○ By Platform (Meta/, TikTok/, Snapchat/, etc.)          │  │
+│  │ ○ By Size (1080x1920/, 1080x1080/, etc.)                 │  │
+│  │ ○ By Variation (V01/, V02/, V03/, etc.)                  │  │
+│  │                                                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌─ FORMAT SETTINGS ─────────────────────────────────────────┐  │
+│  │                                                           │  │
+│  │ Image Format: [PNG ▼] (PNG, JPG, WebP)                    │  │
+│  │ Image Quality: [High (90%) ▼]                             │  │
+│  │                                                           │  │
+│  │ Video Format: [MP4 (H.264) ▼] (MP4, WebM, MOV)            │  │
+│  │ Video Quality: [High (1080p) ▼]                           │  │
+│  │                                                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌─ ADDITIONAL EXPORTS ──────────────────────────────────────┐  │
+│  │                                                           │  │
+│  │ ☑ Include manifest.csv (filename, size, platform, etc.)  │  │
+│  │ ☐ Include thumbnails (200px preview images)              │  │
+│  │ ☐ Include prompts.txt (all prompts used)                 │  │
+│  │ ☐ Platform-ready packages:                               │  │
+│  │   ☐ Meta Bulk Upload CSV                                 │  │
+│  │   ☐ TikTok Bulk Upload format                            │  │
+│  │   ☐ Google Ads bulk sheet                                │  │
+│  │                                                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  Estimated Size: 847 MB                                         │
+│                                                                 │
+│  [Download ZIP]  [Export to Cloud ▼]  [Cancel]                  │
+│                  (Google Drive, Dropbox, S3)                    │
+└─────────────────────────────────────────────────────────────────┘
+Export Configuration:
+typescriptinterface ExportConfig {
+  // Selection
+  selectedGenerationIds: string[];
+  
+  // Naming
+  namingConvention: NamingConvention;
+  namingContext: {
+    client: string;
+    campaign: string;
+    concept: string;
+  };
+  
+  // Filtering
+  filterByPlatform?: string[];      // ['meta', 'tiktok', ...]
+  filterBySize?: string[];          // ['1080x1920', '1080x1080', ...]
+  
+  // Structure
+  folderStructure: 'flat' | 'by-platform' | 'by-size' | 'by-variation';
+  
+  // Formats
+  imageFormat: 'png' | 'jpg' | 'webp';
+  imageQuality: number;             // 1-100
+  videoFormat: 'mp4' | 'webm' | 'mov';
+  videoQuality: 'low' | 'medium' | 'high' | 'original';
+  
+  // Additional
+  includeManifest: boolean;
+  includeThumbnails: boolean;
+  includePrompts: boolean;
+  platformPackages: {
+    metaBulkCSV: boolean;
+    tiktokBulk: boolean;
+    googleAdsBulk: boolean;
+  };
+}
+
+interface ExportManifestRow {
+  filename: string;
+  originalFilename: string;
+  variationNumber: number;
+  iterationNumber: number;
+  width: number;
+  height: number;
+  aspectRatio: string;
+  platform: string;
+  placement: string;
+  format: string;
+  fileSize: number;
+  duration?: number;              // For videos
+  prompt: string;
+  model: string;
+  generatedAt: string;
+  sourceAsset: string;
+}
+Platform-Specific Bulk Upload Formats:
+typescript// Meta Bulk Upload CSV columns
+const metaBulkColumns = [
+  'ad_name',
+  'ad_creative_link_url',
+  'ad_creative_link_title',
+  'image_file_name',      // or video_file_name
+  'call_to_action',
+  'ad_format',            // SINGLE_IMAGE, SINGLE_VIDEO, CAROUSEL
+];
+
+// TikTok Bulk format
+const tiktokBulkColumns = [
+  'ad_name',
+  'creative_type',        // VIDEO, IMAGE
+  'video_file',
+  'display_name',
+  'call_to_action',
+  'landing_page_url',
+];
+
+// Google Ads bulk sheet
+const googleAdsBulkColumns = [
+  'Campaign',
+  'Ad group',
+  'Asset type',           // VIDEO, IMAGE
+  'Asset',               // filename
+  'Asset name',
+];
+Single Asset Download:
+
+Download original resolution
+Apply naming convention
+Option to convert format
+
+Bulk Download:
+typescriptinterface BulkDownloadResult {
+  zipUrl: string;
+  zipSize: number;
+  fileCount: number;
+  manifest: ExportManifestRow[];
+  folderStructure: Record<string, string[]>;  // folder -> filenames
+  generatedAt: Date;
+  expiresAt: Date;                            // Download link expiry
+}
+Export Formats:
+
+Images: PNG (lossless), JPG (configurable quality), WebP (modern, smaller)
+Videos: MP4 (H.264 - universal), WebM (web-optimized), MOV (ProRes for editing)
+
+Cloud Export Options:
+
+Google Drive: Direct upload to user's Drive
+Dropbox: Direct upload to user's Dropbox
+AWS S3: Upload to specified bucket (requires credentials)
+Custom webhook: POST to user-defined endpoint
+
+3.10 Project Management
+Project Structure:
+typescriptinterface Project {
+  id: string;
+  name: string;
+  description?: string;
+  sourceAssets: Asset[];
+  generations: GenerationJob[];
+  settings: {
+    defaultModel: string;
+    defaultSizes: SizeConfig[];
+    defaultVariationCount: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
+}
+UI Requirements:
+
+Project list view with thumbnails
+Create new project flow
+Duplicate project
+Delete project (with confirmation)
+Project settings panel
+Auto-save after each generation
+
+
+4. Technical Architecture
+4.1 Frontend Architecture
+/app
+├── /layout.tsx                 # Root layout with providers
+├── /page.tsx                   # Landing/Dashboard
+├── /(auth)
+│   ├── /login/page.tsx
+│   └── /register/page.tsx
+├── /projects
+│   ├── /page.tsx               # Project list
+│   └── /[projectId]
+│       ├── /page.tsx           # Project workspace
+│       └── /settings/page.tsx
+├── /generate
+│   └── /page.tsx               # Quick generate (no project)
+└── /api
+    ├── /upload/route.ts
+    ├── /generate/route.ts
+    ├── /projects/route.ts
+    └── /webhooks
+        └── /[provider]/route.ts
+
+/components
+├── /ui                         # shadcn components
+├── /upload
+│   ├── DropZone.tsx
+│   └── AssetPreview.tsx
+├── /generation
+│   ├── VariationConfig.tsx
+│   ├── SizeSelector.tsx
+│   ├── ModelSelector.tsx
+│   ├── PromptInput.tsx
+│   └── GenerationQueue.tsx
+├── /results
+│   ├── ResultsGrid.tsx
+│   ├── VariationCard.tsx
+│   ├── PreviewModal.tsx
+│   └── CompareView.tsx
+├── /projects
+│   ├── ProjectList.tsx
+│   └── ProjectCard.tsx
+└── /layout
+    ├── Header.tsx
+    ├── Sidebar.tsx
+    └── Footer.tsx
+
+/lib
+├── /api
+│   ├── veo.ts
+│   ├── runway.ts
+│   ├── stability.ts
+│   ├── replicate.ts
+│   └── index.ts                # Unified API client
+├── /hooks
+│   ├── useGeneration.ts
+│   ├── useUpload.ts
+│   └── useProject.ts
+├── /stores
+│   └── generationStore.ts      # Zustand store
+├── /utils
+│   ├── fileHelpers.ts
+│   └── imageProcessing.ts
+└── /types
+    └── index.ts
+
+/public
+└── /placeholder-assets
+4.2 State Management
+Use Zustand for global state:
+typescriptinterface GenerationStore {
+  // Source assets
+  sourceAssets: Asset[];
+  addSourceAsset: (asset: Asset) => void;
+  removeSourceAsset: (id: string) => void;
+  
+  // Configuration
+  selectedModel: AIModel | null;
+  setSelectedModel: (model: AIModel) => void;
+  variationCount: number;
+  setVariationCount: (count: number) => void;
+  selectedSizes: SizeConfig[];
+  toggleSize: (size: SizeConfig) => void;
+  prompt: string;
+  setPrompt: (prompt: string) => void;
+  
+  // Generation queue
+  jobs: GenerationJob[];
+  addJob: (job: GenerationJob) => void;
+  updateJobStatus: (id: string, status: JobStatus) => void;
+  
+  // Results
+  results: GenerationResult[];
+  selectedResults: string[];
+  toggleResultSelection: (id: string) => void;
+  selectAll: () => void;
+  clearSelection: () => void;
+}
+4.3 API Integration Layer
+Unified Generation Interface:
+typescript// /lib/api/index.ts
+
+interface GenerationRequest {
+  sourceAsset: {
+    url: string;
+    type: 'image' | 'video';
+  };
+  model: string;
+  prompt: string;
+  negativePrompt?: string;
+  outputSize: { width: number; height: number };
+  options?: Record<string, any>;
+}
+
+interface GenerationResponse {
+  id: string;
+  status: 'processing' | 'completed' | 'failed';
+  outputUrl?: string;
+  error?: string;
+  metadata?: Record<string, any>;
+}
+
+abstract class AIProvider {
+  abstract name: string;
+  abstract generate(request: GenerationRequest): Promise<GenerationResponse>;
+  abstract checkStatus(jobId: string): Promise<GenerationResponse>;
+  abstract cancel(jobId: string): Promise<void>;
+}
+
+class VeoProvider extends AIProvider { /* ... */ }
+class RunwayProvider extends AIProvider { /* ... */ }
+class StabilityProvider extends AIProvider { /* ... */ }
+class ReplicateProvider extends AIProvider { /* ... */ }
+
+// Factory
+function getProvider(modelId: string): AIProvider {
+  const providerMap = {
+    'veo-2': VeoProvider,
+    'runway-gen3': RunwayProvider,
+    'stability-sd3': StabilityProvider,
+    'replicate-wan': ReplicateProvider,
+    // ...
+  };
+  return new providerMap[modelId]();
+}
+4.4 Background Job Processing
+Use Server-Sent Events (SSE) or WebSockets for real-time progress updates:
+typescript// /app/api/generate/route.ts
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { sourceAssetId, variations, sizes, modelId, prompt } = body;
+  
+  // Create jobs for each variation x size combination
+  const jobs: GenerationJob[] = [];
+  
+  for (let v = 0; v < variations; v++) {
+    for (const size of sizes) {
+      const job = await createGenerationJob({
+        sourceAssetId,
+        variationIndex: v,
+        size,
+        modelId,
+        prompt: `${prompt} [Variation ${v + 1}]`,
+      });
+      jobs.push(job);
+    }
+  }
+  
+  // Queue jobs for processing
+  await queueJobs(jobs);
+  
+  return Response.json({ jobs });
+}
+
+// /app/api/generate/status/route.ts (SSE endpoint)
+export async function GET(request: Request) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      // Poll job statuses and send updates
+      const interval = setInterval(async () => {
+        const updates = await getJobUpdates();
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(updates)}\n\n`)
+        );
+      }, 1000);
+      
+      request.signal.addEventListener('abort', () => {
+        clearInterval(interval);
+        controller.close();
+      });
+    },
+  });
+  
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+4.5 File Storage
+Use Vercel Blob, AWS S3, or Cloudflare R2 for asset storage:
+typescript// /lib/storage.ts
+
+interface StorageProvider {
+  upload(file: File, path: string): Promise<string>;
+  download(url: string): Promise<Blob>;
+  delete(url: string): Promise<void>;
+  getSignedUrl(url: string, expiresIn: number): Promise<string>;
+}
+
+// Implementation for Vercel Blob
+import { put, del } from '@vercel/blob';
+
+class VercelBlobStorage implements StorageProvider {
+  async upload(file: File, path: string) {
+    const blob = await put(path, file, { access: 'public' });
+    return blob.url;
+  }
+  // ...
+}
+
+5. UI/UX Specifications
+5.1 Design System
+Colors (Dark Mode Primary):
+css:root {
+  --background: 0 0% 7%;
+  --foreground: 0 0% 95%;
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 95%;
+  --primary: 262 83% 58%;      /* Purple accent */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 15%;
+  --accent: 173 80% 40%;        /* Teal for success states */
+  --destructive: 0 84% 60%;
+  --border: 0 0% 18%;
+  --ring: 262 83% 58%;
+}
+Typography:
+
+Font: Inter (body), JetBrains Mono (code/technical)
+Sizes: Follow Tailwind defaults
+
+Spacing:
+
+Use Tailwind spacing scale consistently
+Card padding: p-4 (mobile), p-6 (desktop)
+Grid gaps: gap-4 (mobile), gap-6 (desktop)
+
+5.2 Animation Guidelines (Framer Motion)
+typescript// /lib/animations.ts
+
+export const fadeIn = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.2 },
+};
+
+export const slideUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 },
+  transition: { duration: 0.3, ease: 'easeOut' },
+};
+
+export const scaleIn = {
+  initial: { opacity: 0, scale: 0.95 },
+  animate: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.95 },
+  transition: { duration: 0.2 },
+};
+
+export const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
+};
+
+export const gridItem = {
+  initial: { opacity: 0, scale: 0.9 },
+  animate: { opacity: 1, scale: 1 },
+  transition: { duration: 0.3 },
+};
+Usage:
+
+Grid items: stagger entrance with gridItem variant
+Modals: scaleIn for entrance
+Toast notifications: slideUp
+Loading states: subtle pulse animations
+Progress bars: smooth width transitions
+
+5.3 Component Specifications
+DropZone Component:
+tsx<DropZone
+  onDrop={handleDrop}
+  accept={{ 'image/*': ['.jpg', '.png', '.webp'], 'video/*': ['.mp4', '.mov'] }}
+  maxSize={500 * 1024 * 1024}
+>
+  <div className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary transition-colors">
+    <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />
+    <p className="mt-4 text-lg font-medium">Drop your ad creative here</p>
+    <p className="mt-2 text-sm text-muted-foreground">
+      Supports JPG, PNG, WebP, MP4, MOV up to 500MB
+    </p>
+    <Button variant="secondary" className="mt-4">Browse Files</Button>
+  </div>
+</DropZone>
+VariationCard Component:
+tsx<motion.div
+  variants={gridItem}
+  className="group relative rounded-lg overflow-hidden bg-card border border-border"
+>
+  {/* Thumbnail */}
+  <div className="aspect-square relative">
+    {isVideo ? (
+      <video src={result.url} className="object-cover w-full h-full" muted loop />
+    ) : (
+      <Image src={result.url} fill className="object-cover" alt="" />
+    )}
+    
+    {/* Overlay on hover */}
+    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+      <Button size="icon" variant="secondary" onClick={onPreview}>
+        <Eye className="h-4 w-4" />
+      </Button>
+      <Button size="icon" variant="secondary" onClick={onDownload}>
+        <Download className="h-4 w-4" />
+      </Button>
+      <Button size="icon" variant="secondary" onClick={onRegenerate}>
+        <RefreshCw className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+  
+  {/* Info bar */}
+  <div className="p-3 flex items-center justify-between">
+    <div>
+      <p className="text-sm font-medium">Variation {index + 1}</p>
+      <p className="text-xs text-muted-foreground">{size.width}x{size.height}</p>
+    </div>
+    <Checkbox checked={isSelected} onCheckedChange={onSelect} />
+  </div>
+</motion.div>
+
+6. Database Schema
+Using Prisma with PostgreSQL (or use Supabase):
+prismamodel User {
+  id                String              @id @default(cuid())
+  email             String              @unique
+  name              String?
+  projects          Project[]
+  namingConventions NamingConvention[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model Project {
+  id                  String              @id @default(cuid())
+  name                String
+  description         String?
+  userId              String
+  user                User                @relation(fields: [userId], references: [id])
+  sourceAssets        SourceAsset[]
+  generations         Generation[]
+  namingConventionId  String?
+  namingConvention    NamingConvention?   @relation(fields: [namingConventionId], references: [id])
+  namingContext       Json                @default("{}")  // client, campaign, concept values
+  settings            Json                @default("{}")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+model SourceAsset {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  url           String
+  type          AssetType
+  filename      String
+  fileSize      Int
+  width         Int?
+  height        Int?
+  duration      Float?        // For videos, in seconds
+  metadata      Json          @default("{}")
+  generations   Generation[]
+  createdAt     DateTime      @default(now())
+}
+
+model Generation {
+  id                  String              @id @default(cuid())
+  projectId           String
+  project             Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceAssetId       String
+  sourceAsset         SourceAsset         @relation(fields: [sourceAssetId], references: [id])
+  
+  // Variation info
+  variationIndex      Int
+  iterationNumber     Int                 @default(0)  // 0 = original, 1+ = iteration
+  parentGenerationId  String?             // For iterations, links to parent variation
+  parentGeneration    Generation?         @relation("IterationTree", fields: [parentGenerationId], references: [id])
+  childGenerations    Generation[]        @relation("IterationTree")
+  
+  // Generation config
+  modelId             String
+  prompt              String
+  negativePrompt      String?
+  width               Int
+  height              Int
+  sizeName            String
+  platform            String              // meta, tiktok, snapchat, moloco, googleUAC
+  placement           String?             // Feed, Stories, InFeed, etc.
+  
+  // Status
+  status              GenerationStatus    @default(QUEUED)
+  progress            Int                 @default(0)
+  outputUrl           String?
+  thumbnailUrl        String?
+  error               String?
+  providerJobId       String?
+  cost                Float?
+  
+  // Feedback (for iterations)
+  feedbackId          String?
+  feedback            VariationFeedback?  @relation(fields: [feedbackId], references: [id])
+  
+  metadata            Json                @default("{}")
+  createdAt           DateTime            @default(now())
+  completedAt         DateTime?
+}
+
+model VariationFeedback {
+  id                  String        @id @default(cuid())
+  positiveNotes       String?
+  changeRequests      String?
+  quickTags           String[]      // Array of tag strings
+  sourceVariationIds  String[]      // IDs of variations this feedback was based on
+  generations         Generation[]  // Generations created from this feedback
+  createdAt           DateTime      @default(now())
+}
+
+model NamingConvention {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  name          String
+  components    Json      // Array of NamingComponent
+  separator     String    @default("_")
+  caseStyle     String    @default("original")
+  dateFormat    String    @default("YYYYMMDD")
+  maxLength     Int?
+  isDefault     Boolean   @default(false)
+  projects      Project[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ExportJob {
+  id              String        @id @default(cuid())
+  projectId       String
+  generationIds   String[]      // IDs of generations to export
+  config          Json          // ExportConfig object
+  status          ExportStatus  @default(PENDING)
+  zipUrl          String?
+  zipSize         Int?
+  fileCount       Int?
+  manifest        Json?         // Array of ExportManifestRow
+  error           String?
+  createdAt       DateTime      @default(now())
+  completedAt     DateTime?
+  expiresAt       DateTime?     // When download link expires
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+}
+
+enum GenerationStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+7. API Routes
+7.1 Upload Routes
+typescript// POST /api/upload
+// Handles file upload to storage
+Request: FormData with file
+Response: { id: string, url: string, type: 'image' | 'video', metadata: {...} }
+
+// DELETE /api/upload/:id
+// Removes uploaded asset
+Response: { success: true }
+7.2 Generation Routes
+typescript// POST /api/generate
+// Initiates generation batch
+Request: {
+  projectId?: string,
+  sourceAssetId: string,
+  modelId: string,
+  prompt: string,
+  negativePrompt?: string,
+  variationCount: number,
+  sizes: Array<{ width: number, height: number, name: string, platform: string, placement?: string }>,
+  options?: Record<string, any>
+}
+Response: {
+  batchId: string,
+  jobs: Array<{ id: string, status: 'queued', ... }>
+}
+
+// GET /api/generate/status?batchId=xxx
+// SSE endpoint for real-time status updates
+Response: Server-Sent Events stream
+
+// POST /api/generate/:id/cancel
+// Cancels a specific generation job
+Response: { success: true }
+
+// POST /api/generate/:id/retry
+// Retries a failed generation
+Response: { id: string, status: 'queued' }
+7.3 Feedback & Iteration Routes
+typescript// POST /api/generate/iterate
+// Generate new variations based on feedback from existing variations
+Request: {
+  projectId: string,
+  sourceVariationIds: string[],       // Selected variation IDs to iterate on
+  feedback: {
+    positiveNotes?: string,
+    changeRequests?: string,
+    quickTags?: string[],
+  },
+  iterationCount: number,             // 1-10
+  inheritSettings: {
+    keepModel: boolean,
+    keepSizes: boolean,
+    keepBasePrompt: boolean,
+  }
+}
+Response: {
+  feedbackId: string,
+  batchId: string,
+  jobs: Array<{ id: string, status: 'queued', parentGenerationId: string, iterationNumber: number }>
+}
+
+// GET /api/generate/lineage/:id
+// Get iteration tree/lineage for a variation
+Response: {
+  original: Generation,
+  iterations: Array<{
+    generation: number,       // 1, 2, 3...
+    variations: Generation[],
+    feedback: VariationFeedback
+  }>
+}
+7.4 Naming Convention Routes
+typescript// GET /api/naming-conventions
+// List user's naming conventions
+Response: { conventions: NamingConvention[] }
+
+// POST /api/naming-conventions
+// Create new naming convention
+Request: {
+  name: string,
+  components: NamingComponent[],
+  separator: string,
+  caseStyle: string,
+  dateFormat: string,
+  maxLength?: number,
+  isDefault?: boolean
+}
+Response: { convention: NamingConvention }
+
+// PATCH /api/naming-conventions/:id
+// Update naming convention
+Request: Partial<NamingConvention>
+Response: { convention: NamingConvention }
+
+// DELETE /api/naming-conventions/:id
+// Delete naming convention
+Response: { success: true }
+
+// POST /api/naming-conventions/preview
+// Preview filenames with a naming convention
+Request: {
+  conventionId: string,       // or inline convention object
+  generationIds: string[],
+  context: { client: string, campaign: string, concept: string }
+}
+Response: {
+  previews: Array<{ generationId: string, filename: string }>
+}
+7.5 Project Routes
+typescript// GET /api/projects
+// List user's projects
+Response: { projects: Project[] }
+
+// POST /api/projects
+// Create new project
+Request: { 
+  name: string, 
+  description?: string,
+  namingConventionId?: string,
+  namingContext?: { client: string, campaign: string, concept: string }
+}
+Response: { project: Project }
+
+// GET /api/projects/:id
+// Get project with assets and generations
+Response: { 
+  project: Project, 
+  sourceAssets: Asset[], 
+  generations: Generation[],
+  namingConvention: NamingConvention | null
+}
+
+// PATCH /api/projects/:id
+// Update project
+Request: { 
+  name?: string, 
+  description?: string, 
+  settings?: {...},
+  namingConventionId?: string,
+  namingContext?: { client?: string, campaign?: string, concept?: string }
+}
+Response: { project: Project }
+
+// DELETE /api/projects/:id
+// Delete project and all associated data
+Response: { success: true }
+7.6 Export Routes
+typescript// POST /api/export
+// Create export job for selected generations
+Request: {
+  projectId: string,
+  generationIds: string[],
+  config: {
+    namingConventionId?: string,
+    namingContext: { client: string, campaign: string, concept: string },
+    filterByPlatform?: string[],
+    filterBySize?: string[],
+    folderStructure: 'flat' | 'by-platform' | 'by-size' | 'by-variation',
+    imageFormat: 'png' | 'jpg' | 'webp',
+    imageQuality: number,
+    videoFormat: 'mp4' | 'webm' | 'mov',
+    videoQuality: 'low' | 'medium' | 'high' | 'original',
+    includeManifest: boolean,
+    includeThumbnails: boolean,
+    includePrompts: boolean,
+    platformPackages: {
+      metaBulkCSV: boolean,
+      tiktokBulk: boolean,
+      googleAdsBulk: boolean,
+    }
+  }
+}
+Response: { 
+  exportJobId: string, 
+  status: 'pending',
+  estimatedSize: number,
+  fileCount: number
+}
+
+// GET /api/export/:id/status
+// Check export job status
+Response: {
+  status: 'pending' | 'processing' | 'completed' | 'failed',
+  progress: number,           // 0-100
+  zipUrl?: string,           // Available when completed
+  zipSize?: number,
+  manifest?: ExportManifestRow[],
+  expiresAt?: string,
+  error?: string
+}
+
+// GET /api/export/:id/download
+// Download the generated ZIP (redirects to signed URL)
+Response: Redirect to signed download URL
+
+// POST /api/export/:id/cloud
+// Export to cloud storage
+Request: {
+  provider: 'google-drive' | 'dropbox' | 's3',
+  credentials?: {...},        // For S3
+  folderId?: string,          // For Google Drive/Dropbox
+}
+Response: {
+  status: 'uploading',
+  cloudUrl?: string           // When complete
+}
+
+// GET /api/export/:id/manifest
+// Download just the manifest CSV
+Response: CSV file download
+
+// GET /api/export/:id/bulk/:platform
+// Download platform-specific bulk upload file
+// platform: 'meta' | 'tiktok' | 'google'
+Response: CSV file download
+
+8. Environment Variables
+env# Database
+DATABASE_URL="postgresql://..."
+
+# Authentication (if using NextAuth)
+NEXTAUTH_SECRET="..."
+NEXTAUTH_URL="http://localhost:3000"
+
+# File Storage (choose one)
+VERCEL_BLOB_READ_WRITE_TOKEN="..."
+# OR
+AWS_ACCESS_KEY_ID="..."
+AWS_SECRET_ACCESS_KEY="..."
+AWS_S3_BUCKET="..."
+AWS_REGION="..."
+
+# AI Model APIs
+GOOGLE_AI_API_KEY="..."           # For Veo
+RUNWAY_API_KEY="..."
+STABILITY_API_KEY="..."
+REPLICATE_API_TOKEN="..."
+LUMA_API_KEY="..."
+KLING_API_KEY="..."
+
+# Cloud Export (optional)
+GOOGLE_OAUTH_CLIENT_ID="..."
+GOOGLE_OAUTH_CLIENT_SECRET="..."
+DROPBOX_APP_KEY="..."
+DROPBOX_APP_SECRET="..."
+
+9. Development Milestones
+Phase 1: Core MVP (Weeks 1-4)
+
+ Project setup (Next.js 14, shadcn/ui, Tailwind, Framer Motion)
+ File upload with drag-and-drop
+ Basic variation configuration UI
+ Size selector for Meta, TikTok, Snapchat, Moloco, Google UAC
+ Integration with 2 AI models (Stability AI + Replicate)
+ Results grid with preview
+ Basic export (ZIP download)
+
+Phase 2: Feedback & Naming (Weeks 5-6)
+
+ Variation selection with checkboxes
+ Feedback panel with quick tags
+ Iteration generation from feedback
+ Naming convention builder
+ Filename preview
+ Enhanced export with naming
+
+Phase 3: Polish & Scale (Weeks 7-8)
+
+ Add remaining AI models (Veo, Runway, Luma, Kling)
+ Platform-specific bulk upload exports
+ Cloud export (Google Drive, Dropbox)
+ Project management
+ Performance optimization
+ Error handling & retry logic
+
+Phase 4: Future (Post-MVP)
+
+ Ad platform API integrations (Meta, TikTok, etc.)
+ Performance data ingestion
+ Auto-iteration based on performance
+ Team collaboration features
+
+
+10. Success Metrics
+MetricTargetTime to generate 10 variations< 5 minutesExport with correct naming100% accuracyPlatform size coverage100% for 5 platformsUser iteration cyclesAvg 2-3 per sessionExport success rate> 99%
+
+11. Notes for Replit Implementation
+
+Start with the UI shell - Build the layout, navigation, and component structure first using shadcn/ui components.
+Mock the AI APIs initially - Use placeholder images/videos while building the UI to iterate faster. Add real API integrations once the flow is solid.
+Use Vercel Blob or Cloudflare R2 for file storage - both work well with Replit deployments.
+Implement SSE for progress updates - This provides a better UX than polling for generation status.
+Key shadcn components to install:
+
+Button, Card, Checkbox, Dialog, DropdownMenu
+Input, Label, Progress, Select, Slider
+Tabs, Toast, Tooltip, Sheet
+
+
+Framer Motion priorities:
+
+Grid item stagger animations
+Modal enter/exit
+Progress bar transitions
+Feedback panel slide-in
+
+
+Database: Supabase works great with Replit and provides PostgreSQL + auth out of the box.
