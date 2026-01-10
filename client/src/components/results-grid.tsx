@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { VariationCard } from "./variation-card";
-import { Download, Trash2, CheckSquare, Square, Grid3X3, List, ImageOff } from "lucide-react";
+import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight } from "lucide-react";
 import type { Variation, SizeConfig } from "@shared/schema";
 
 interface ResultsGridProps {
@@ -55,13 +55,72 @@ export function ResultsGrid({
   if (variations.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <ImageOff className="h-8 w-8 text-muted-foreground" />
+        <div className="max-w-md space-y-8">
+          {/* Header */}
+          <div className="space-y-2">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5">
+              <Sparkles className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-semibold">Create AI Ad Variations</h2>
+            <p className="text-sm text-muted-foreground">
+              Generate multiple creative variations of your ad in seconds
+            </p>
+          </div>
+
+          {/* Steps */}
+          <div className="space-y-4">
+            <div className="flex items-start gap-4 rounded-lg border border-border bg-card p-4 text-left">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+                1
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Upload className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Upload your asset</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Drop an image or video in the sidebar to get started
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 rounded-lg border border-border bg-card p-4 text-left">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-medium">
+                2
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Configure settings</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Choose platforms, sizes, and AI model
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 rounded-lg border border-border bg-card p-4 text-left">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-medium">
+                3
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Generate variations</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Click generate and watch AI create your ad variations
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <ArrowRight className="h-4 w-4" />
+            <span>Start by uploading an asset in the left sidebar</span>
+          </div>
         </div>
-        <h3 className="text-lg font-medium mb-2">No variations yet</h3>
-        <p className="text-sm text-muted-foreground max-w-[300px]">
-          Upload an asset and configure your settings to generate creative variations.
-        </p>
       </div>
     );
   }

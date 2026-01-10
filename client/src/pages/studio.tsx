@@ -31,6 +31,7 @@ import { ResultsGrid } from "@/components/results-grid";
 import { DetailPanel } from "@/components/detail-panel";
 import { Lightbox } from "@/components/lightbox";
 import { ExportModal, type ExportOptions } from "@/components/export-modal";
+import { WorkflowStepper } from "@/components/workflow-stepper";
 import {
   Sparkles,
   Save,
@@ -69,17 +70,24 @@ export default function Studio() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
 
+  // Smart defaults for new users
+  const defaultSizes: SizeConfig[] = [
+    { name: 'Feed Square', width: 1080, height: 1080, placement: 'Feed', platform: 'meta' },
+    { name: 'Story/Reel', width: 1080, height: 1920, placement: 'Stories/Reels', platform: 'meta' },
+    { name: 'In-Feed Video', width: 1080, height: 1920, placement: 'For You Feed', platform: 'tiktok' },
+  ];
+
   // Project State
   const [projectName, setProjectName] = useState("Untitled Project");
   const [projectId, setProjectId] = useState<string | null>(null);
   const [sourceAsset, setSourceAsset] = useState<Asset | null>(null);
-  const [variationCount, setVariationCount] = useState(5);
+  const [variationCount, setVariationCount] = useState(3);
   const [selectedVariationTypes, setSelectedVariationTypes] = useState<VariationTypeId[]>([
     "background-swap",
     "style-transfer",
   ]);
-  const [selectedSizes, setSelectedSizes] = useState<SizeConfig[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<AIModelId>("stability-sd3");
+  const [selectedSizes, setSelectedSizes] = useState<SizeConfig[]>(defaultSizes);
+  const [selectedModelId, setSelectedModelId] = useState<AIModelId>("flux-schnell");
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
 
@@ -92,7 +100,7 @@ export default function Studio() {
   const [exportProgress, setExportProgress] = useState(0);
 
   // Fetch variations
-  const { data: variations = [] } = useQuery<Variation[]>({
+  const { data: variations = [], refetch: refetchVariations } = useQuery<Variation[]>({
     queryKey: ["/api/variations", projectId],
     queryFn: async () => {
       if (!projectId) return [];
@@ -101,6 +109,8 @@ export default function Studio() {
       return res.json();
     },
     enabled: !!projectId,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   // Fetch generation jobs
@@ -200,10 +210,11 @@ export default function Studio() {
           const allComplete = jobsData.every(
             (j) => j.status === "completed" || j.status === "failed"
           );
-          
-          queryClient.invalidateQueries({ queryKey: ["/api/jobs", pid] });
-          queryClient.invalidateQueries({ queryKey: ["/api/variations", pid] });
-          
+
+          // Force refetch to get latest data
+          await queryClient.refetchQueries({ queryKey: ["/api/jobs", pid] });
+          await queryClient.refetchQueries({ queryKey: ["/api/variations", pid] });
+
           if (allComplete) {
             clearInterval(pollInterval);
             const completed = jobsData.filter((j) => j.status === "completed").length;
@@ -216,7 +227,7 @@ export default function Studio() {
       } catch {
         clearInterval(pollInterval);
       }
-    }, 1000);
+    }, 2000); // Poll every 2 seconds instead of 1
 
     // Clean up after 5 minutes max
     setTimeout(() => clearInterval(pollInterval), 300000);
@@ -283,10 +294,10 @@ export default function Studio() {
     setProjectId(null);
     setProjectName("Untitled Project");
     setSourceAsset(null);
-    setVariationCount(5);
+    setVariationCount(3);
     setSelectedVariationTypes(["background-swap", "style-transfer"]);
-    setSelectedSizes([]);
-    setSelectedModelId("stability-sd3");
+    setSelectedSizes(defaultSizes);
+    setSelectedModelId("flux-schnell");
     setPrompt("");
     setNegativePrompt("");
     setSelectedVariationIds(new Set());
@@ -295,7 +306,7 @@ export default function Studio() {
       title: "New project",
       description: "Started a new project.",
     });
-  }, [toast]);
+  }, [toast, defaultSizes]);
 
   // Handle file upload
   const handleUpload = useCallback(
@@ -543,6 +554,12 @@ export default function Studio() {
         >
           {leftPanelOpen && (
             <div className="flex h-full flex-col">
+              {/* Workflow Stepper */}
+              <WorkflowStepper
+                hasAsset={!!sourceAsset}
+                hasSizes={selectedSizes.length > 0}
+                isGenerating={generateMutation.isPending}
+              />
               <ScrollArea className="flex-1">
                 <Accordion
                   type="multiple"
