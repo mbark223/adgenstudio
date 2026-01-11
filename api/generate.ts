@@ -11,6 +11,51 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+// Download image from URL and upload to Supabase Storage for permanent storage
+async function uploadToStorage(imageUrl: string, jobId: string): Promise<string> {
+  const supabase = getSupabase();
+
+  try {
+    // Fetch the image
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      console.error('Failed to fetch image:', response.status, response.statusText);
+      return imageUrl; // Return original URL as fallback
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Determine file extension from content-type
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const ext = contentType.includes('webp') ? 'webp' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png';
+
+    // Upload to Supabase Storage
+    const filePath = `generated/${jobId}-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from('assets')
+      .upload(filePath, buffer, {
+        contentType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      return imageUrl; // Return original URL as fallback
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('assets')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  } catch (err) {
+    console.error('Error uploading to storage:', err);
+    return imageUrl; // Return original URL as fallback
+  }
+}
+
 // Initialize AI clients lazily
 function getReplicate() {
   if (!process.env.REPLICATE_API_TOKEN) throw new Error('Missing REPLICATE_API_TOKEN');
@@ -225,12 +270,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .eq('id', job.id);
 
           // Generate the image/video using AI
-          const generatedUrl = await generateImage(
+          const tempUrl = await generateImage(
             modelId,
             prompt || 'A creative advertisement variation',
             sourceAssetUrl || undefined,
             negativePrompt
           );
+
+          // Upload to permanent storage (Replicate URLs expire)
+          const generatedUrl = await uploadToStorage(tempUrl, job.id);
 
           // Update job as completed
           await supabase

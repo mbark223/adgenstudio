@@ -16,7 +16,7 @@ export function WorkflowStepper({ hasAsset, hasSizes, isGenerating }: WorkflowSt
   ];
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+    <div className="flex items-center justify-center gap-2 px-3 py-3 border-b border-border bg-muted/30">
       {steps.map((step, index) => {
         const isActive = step.number === currentStep;
         const isCompleted = step.completed;
@@ -24,9 +24,9 @@ export function WorkflowStepper({ hasAsset, hasSizes, isGenerating }: WorkflowSt
 
         return (
           <div key={step.number} className="flex items-center">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <div
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-colors ${
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${
                   isCompleted
                     ? "bg-primary text-primary-foreground"
                     : isActive
@@ -35,9 +35,9 @@ export function WorkflowStepper({ hasAsset, hasSizes, isGenerating }: WorkflowSt
                 }`}
               >
                 {isCompleted ? (
-                  <Check className="h-4 w-4" />
+                  <Check className="h-3.5 w-3.5" />
                 ) : (
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon className="h-3 w-3" />
                 )}
               </div>
               <span
@@ -51,7 +51,7 @@ export function WorkflowStepper({ hasAsset, hasSizes, isGenerating }: WorkflowSt
 
             {index < steps.length - 1 && (
               <div
-                className={`mx-3 h-px w-8 ${
+                className={`mx-2 h-px w-4 ${
                   step.completed ? "bg-primary" : "bg-border"
                 }`}
               />

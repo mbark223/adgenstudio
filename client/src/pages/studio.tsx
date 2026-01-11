@@ -643,13 +643,8 @@ export default function Studio() {
 
               {/* Generate Button */}
               <div className="border-t border-border p-4 space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {variationCount} variations × {selectedSizes.length} sizes
-                  </span>
-                  <span className="font-mono">
-                    ~${estimatedCost()}
-                  </span>
+                <div className="text-center text-sm text-muted-foreground">
+                  {variationCount} variations × {selectedSizes.length} sizes
                 </div>
                 <Button
                   className="w-full gap-2"
