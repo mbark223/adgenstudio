@@ -139,6 +139,36 @@ async function generateImage(
 ): Promise<string> {
 
   switch (modelId) {
+    case 'nanobanana': {
+      const replicate = getReplicate();
+      if (sourceImageUrl) {
+        const output = await replicate.run(
+          'fofr/sdxl-nano-banana',
+          {
+            input: {
+              prompt: prompt,
+              image: sourceImageUrl,
+              prompt_strength: 0.35,
+              negative_prompt: negativePrompt || '',
+            }
+          }
+        );
+        if (Array.isArray(output)) return output[0] as string;
+        return output as string;
+      }
+      const output = await replicate.run(
+        'fofr/sdxl-nano-banana',
+        {
+          input: {
+            prompt: prompt,
+            negative_prompt: negativePrompt || '',
+          }
+        }
+      );
+      if (Array.isArray(output)) return output[0] as string;
+      return output as string;
+    }
+
     case 'dall-e-3': {
       const openai = getOpenAI();
       const response = await openai.images.generate({

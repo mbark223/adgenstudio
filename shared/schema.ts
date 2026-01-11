@@ -70,6 +70,14 @@ export const availableModels = [
     avgGenerationTime: 5,
   },
   {
+    id: 'nanobanana',
+    name: 'Nano Banana',
+    provider: 'Replicate',
+    type: 'image' as const,
+    capabilities: ['text-to-image', 'image-to-image', 'high-quality'],
+    avgGenerationTime: 10,
+  },
+  {
     id: 'flux-pro',
     name: 'Flux Pro',
     provider: 'Replicate',
