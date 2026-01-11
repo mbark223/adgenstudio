@@ -108,7 +108,7 @@ Write a prompt for an AI image model that will create a variation of their ad wh
 Make it detailed and specific for ad creative generation.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       messages: [
         { role: 'user', content: userMessage }
@@ -143,29 +143,32 @@ async function generateImage(
       const replicate = getReplicate();
       if (sourceImageUrl) {
         const output = await replicate.run(
-          'fofr/sdxl-nano-banana',
+          'google/nano-banana',
           {
             input: {
               prompt: prompt,
               image: sourceImageUrl,
-              prompt_strength: 0.35,
-              negative_prompt: negativePrompt || '',
             }
           }
         );
         if (Array.isArray(output)) return output[0] as string;
+        if (typeof output === 'object' && output !== null && 'output' in output) {
+          return (output as any).output as string;
+        }
         return output as string;
       }
       const output = await replicate.run(
-        'fofr/sdxl-nano-banana',
+        'google/nano-banana',
         {
           input: {
             prompt: prompt,
-            negative_prompt: negativePrompt || '',
           }
         }
       );
       if (Array.isArray(output)) return output[0] as string;
+      if (typeof output === 'object' && output !== null && 'output' in output) {
+        return (output as any).output as string;
+      }
       return output as string;
     }
 

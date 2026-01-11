@@ -72,10 +72,10 @@ export const availableModels = [
   {
     id: 'nanobanana',
     name: 'Nano Banana',
-    provider: 'Replicate',
+    provider: 'Google AI',
     type: 'image' as const,
-    capabilities: ['text-to-image', 'image-to-image', 'high-quality'],
-    avgGenerationTime: 10,
+    capabilities: ['text-to-image', 'image-to-image', 'image-editing'],
+    avgGenerationTime: 15,
   },
   {
     id: 'flux-pro',
