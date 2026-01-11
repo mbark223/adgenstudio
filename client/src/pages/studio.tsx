@@ -32,6 +32,8 @@ import { DetailPanel } from "@/components/detail-panel";
 import { Lightbox } from "@/components/lightbox";
 import { ExportModal, type ExportOptions } from "@/components/export-modal";
 import { WorkflowStepper } from "@/components/workflow-stepper";
+import { VideoCards } from "@/components/video-cards";
+import { availableModels } from "@shared/schema";
 import {
   Sparkles,
   Save,
@@ -90,6 +92,10 @@ export default function Studio() {
   const [selectedModelId, setSelectedModelId] = useState<AIModelId>("flux-schnell");
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
+
+  // Video Cards State (for intro/outro frames)
+  const [introCard, setIntroCard] = useState<Asset | null>(null);
+  const [outroCard, setOutroCard] = useState<Asset | null>(null);
 
   // Upload State
   const [isUploading, setIsUploading] = useState(false);
@@ -300,6 +306,8 @@ export default function Studio() {
     setSelectedModelId("flux-schnell");
     setPrompt("");
     setNegativePrompt("");
+    setIntroCard(null);
+    setOutroCard(null);
     setSelectedVariationIds(new Set());
     setViewingVariation(null);
     toast({
@@ -630,12 +638,40 @@ export default function Studio() {
                         AI Model
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
+                    <AccordionContent className="px-4 pb-4 space-y-4">
                       <ModelSelector
                         selectedModelId={selectedModelId}
                         onModelChange={setSelectedModelId}
                         assetType={sourceAsset?.type || null}
                       />
+
+                      {/* Show video cards for video/i2v models */}
+                      {selectedModelId && availableModels.find(m => m.id === selectedModelId)?.type !== 'image' && (
+                        <VideoCards
+                          introCard={introCard}
+                          outroCard={outroCard}
+                          onIntroUpload={async (file) => {
+                            const formData = new FormData();
+                            formData.append("file", file);
+                            const response = await fetch("/api/upload", { method: "POST", body: formData });
+                            if (response.ok) {
+                              const asset = await response.json();
+                              setIntroCard(asset);
+                            }
+                          }}
+                          onOutroUpload={async (file) => {
+                            const formData = new FormData();
+                            formData.append("file", file);
+                            const response = await fetch("/api/upload", { method: "POST", body: formData });
+                            if (response.ok) {
+                              const asset = await response.json();
+                              setOutroCard(asset);
+                            }
+                          }}
+                          onRemoveIntro={() => setIntroCard(null)}
+                          onRemoveOutro={() => setOutroCard(null)}
+                        />
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
