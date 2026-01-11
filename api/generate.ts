@@ -119,7 +119,7 @@ async function generateImage(
             input: {
               prompt: prompt,
               image: sourceImageUrl,
-              prompt_strength: 0.7, // How much to transform (0.7 = moderate change)
+              prompt_strength: 0.3, // Lower = stays closer to source image
               negative_prompt: negativePrompt || '',
               output_format: 'png',
             }
@@ -187,7 +187,7 @@ async function generateImage(
             input: {
               prompt: prompt,
               image: sourceImageUrl,
-              prompt_strength: 0.75,
+              prompt_strength: 0.35, // Lower = stays closer to source image
               go_fast: true,
               num_outputs: 1,
               aspect_ratio: '1:1',
