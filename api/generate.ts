@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import Replicate from 'replicate';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import Anthropic from '@anthropic-ai/sdk';
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -70,6 +71,63 @@ function getOpenAI() {
 function getGemini() {
   if (!process.env.GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY');
   return new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+}
+
+function getAnthropic() {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('Missing ANTHROPIC_API_KEY');
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
+
+// Use Claude to craft the perfect prompt for image generation
+async function enhancePromptWithClaude(
+  userPrompt: string,
+  sourceImageUrl: string | null,
+  variationTypes: string[]
+): Promise<string> {
+  try {
+    const anthropic = getAnthropic();
+
+    const systemPrompt = `You are a creative director for advertising. Your job is to write precise, detailed prompts for AI image generation that will create ad variations.
+
+Guidelines:
+- Keep the core subject, product, and branding elements from the original
+- Focus on subtle variations: lighting, color grading, background tweaks, mood shifts
+- Be specific about visual details: colors, composition, style
+- Keep prompts concise but descriptive (2-3 sentences max)
+- Do NOT change the main subject or product
+- Output ONLY the prompt, no explanations`;
+
+    const userMessage = sourceImageUrl
+      ? `The user uploaded an advertisement image. They want variations with these types: ${variationTypes.join(', ')}.
+
+Their additional direction: "${userPrompt || 'Create subtle creative variations of this ad'}"
+
+Write a prompt for an AI image model that will create a variation of their ad while keeping the main subject and branding intact. The prompt should guide the AI to make subtle creative changes based on the variation types requested.`
+      : `Write a prompt for an AI image model based on this direction: "${userPrompt}"
+
+Make it detailed and specific for ad creative generation.`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 300,
+      messages: [
+        { role: 'user', content: userMessage }
+      ],
+      system: systemPrompt,
+    });
+
+    const textContent = response.content.find(c => c.type === 'text');
+    if (textContent && textContent.type === 'text') {
+      console.log('Claude enhanced prompt:', textContent.text);
+      return textContent.text;
+    }
+
+    return userPrompt || 'A professional advertisement variation with enhanced visual appeal';
+  } catch (error) {
+    console.error('Claude prompt enhancement failed:', error);
+    // Fall back to original prompt if Claude fails
+    return userPrompt || 'A professional advertisement variation';
+  }
 }
 
 // Generate image using the appropriate AI service
@@ -312,6 +370,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (jobsError) throw jobsError;
 
+      // Use Claude to enhance the prompt once for all variations
+      let enhancedPrompt = prompt || '';
+      try {
+        enhancedPrompt = await enhancePromptWithClaude(
+          prompt || '',
+          sourceAssetUrl,
+          variationTypes || []
+        );
+      } catch (e) {
+        console.log('Skipping Claude enhancement, using original prompt');
+        enhancedPrompt = prompt || 'A creative advertisement variation';
+      }
+
       // Process each job with AI generation
       for (const job of jobsData) {
         try {
@@ -321,10 +392,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .update({ status: 'processing', progress: 50 })
             .eq('id', job.id);
 
-          // Generate the image/video using AI
+          // Generate the image/video using AI with Claude-enhanced prompt
           const tempUrl = await generateImage(
             modelId,
-            prompt || 'A creative advertisement variation',
+            enhancedPrompt,
             sourceAssetUrl || undefined,
             negativePrompt
           );
