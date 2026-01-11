@@ -662,6 +662,31 @@ export default function Studio() {
 
         {/* Center Content */}
         <main className="flex flex-1 flex-col overflow-hidden">
+          {/* Generation Progress Bar */}
+          {jobs.length > 0 && jobs.some(j => j.status === 'processing' || j.status === 'queued') && (
+            <div className="border-b border-border bg-primary/5 px-4 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                  <span className="text-sm font-medium">
+                    Generating variations...
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {jobs.filter(j => j.status === 'completed').length} of {jobs.length} complete
+                </span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.round((jobs.filter(j => j.status === 'completed').length / jobs.length) * 100)}%`
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-hidden">
             <ResultsGrid
               variations={variations}

@@ -111,6 +111,23 @@ async function generateImage(
 
     case 'stability-sd3': {
       const replicate = getReplicate();
+      // Use img2img if source image provided
+      if (sourceImageUrl) {
+        const output = await replicate.run(
+          'stability-ai/stable-diffusion-3',
+          {
+            input: {
+              prompt: prompt,
+              image: sourceImageUrl,
+              prompt_strength: 0.7, // How much to transform (0.7 = moderate change)
+              negative_prompt: negativePrompt || '',
+              output_format: 'png',
+            }
+          }
+        );
+        if (Array.isArray(output)) return output[0] as string;
+        return output as string;
+      }
       const output = await replicate.run(
         'stability-ai/stable-diffusion-3',
         {
@@ -122,13 +139,29 @@ async function generateImage(
           }
         }
       );
-      // Output is typically an array of URLs or a single URL
       if (Array.isArray(output)) return output[0] as string;
       return output as string;
     }
 
     case 'flux-pro': {
       const replicate = getReplicate();
+      // Flux 1.1 Pro supports image prompts for img2img style
+      if (sourceImageUrl) {
+        const output = await replicate.run(
+          'black-forest-labs/flux-1.1-pro',
+          {
+            input: {
+              prompt: prompt,
+              image_prompt: sourceImageUrl,
+              aspect_ratio: '1:1',
+              output_format: 'png',
+              safety_tolerance: 2,
+            }
+          }
+        );
+        if (Array.isArray(output)) return output[0] as string;
+        return output as string;
+      }
       const output = await replicate.run(
         'black-forest-labs/flux-pro',
         {
@@ -146,6 +179,25 @@ async function generateImage(
 
     case 'flux-schnell': {
       const replicate = getReplicate();
+      // Use flux-dev for img2img which supports image input
+      if (sourceImageUrl) {
+        const output = await replicate.run(
+          'black-forest-labs/flux-dev',
+          {
+            input: {
+              prompt: prompt,
+              image: sourceImageUrl,
+              prompt_strength: 0.75,
+              go_fast: true,
+              num_outputs: 1,
+              aspect_ratio: '1:1',
+              output_format: 'png',
+            }
+          }
+        );
+        if (Array.isArray(output)) return output[0] as string;
+        return output as string;
+      }
       const output = await replicate.run(
         'black-forest-labs/flux-schnell',
         {
