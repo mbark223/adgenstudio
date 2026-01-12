@@ -78,12 +78,13 @@ function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
-// Use Claude to craft the perfect prompt for image generation
-async function enhancePromptWithClaude(
+// Use Claude to craft multiple unique prompts for image generation variations
+async function enhancePromptsWithClaude(
   userPrompt: string,
   sourceImageUrl: string | null,
-  variationTypes: string[]
-): Promise<string> {
+  variationTypes: string[],
+  variationCount: number
+): Promise<string[]> {
   try {
     const anthropic = getAnthropic();
 
@@ -91,25 +92,30 @@ async function enhancePromptWithClaude(
 
 Guidelines:
 - Keep the core subject, product, and branding elements from the original
-- Focus on subtle variations: lighting, color grading, background tweaks, mood shifts
+- Each variation should be DISTINCTLY DIFFERENT from the others
+- Focus on different aspects: lighting changes, color grading, background variations, mood shifts, time of day, weather, seasonal themes
 - Be specific about visual details: colors, composition, style
-- Keep prompts concise but descriptive (2-3 sentences max)
+- Keep each prompt concise but descriptive (2-3 sentences max)
 - Do NOT change the main subject or product
-- Output ONLY the prompt, no explanations`;
+- Output ONLY the prompts, one per line, numbered 1. 2. 3. etc.`;
 
     const userMessage = sourceImageUrl
-      ? `The user uploaded an advertisement image. They want variations with these types: ${variationTypes.join(', ')}.
+      ? `The user uploaded an advertisement image. They want ${variationCount} UNIQUE variations with these types: ${variationTypes.join(', ')}.
 
 Their additional direction: "${userPrompt || 'Create subtle creative variations of this ad'}"
 
-Write a prompt for an AI image model that will create a variation of their ad while keeping the main subject and branding intact. The prompt should guide the AI to make subtle creative changes based on the variation types requested.`
-      : `Write a prompt for an AI image model based on this direction: "${userPrompt}"
+Write ${variationCount} DIFFERENT prompts for an AI image model. Each prompt should create a distinctly different variation while keeping the main subject and branding intact. Make each one unique - vary the lighting, mood, colors, background elements, or style between them.
 
-Make it detailed and specific for ad creative generation.`;
+Output exactly ${variationCount} prompts, numbered 1. through ${variationCount}.`
+      : `Write ${variationCount} DIFFERENT prompts for an AI image model based on this direction: "${userPrompt}"
+
+Each prompt should be distinctly different - vary the style, mood, lighting, or approach.
+
+Output exactly ${variationCount} prompts, numbered 1. through ${variationCount}.`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
+      max_tokens: 1000,
       messages: [
         { role: 'user', content: userMessage }
       ],
@@ -118,16 +124,59 @@ Make it detailed and specific for ad creative generation.`;
 
     const textContent = response.content.find(c => c.type === 'text');
     if (textContent && textContent.type === 'text') {
-      console.log('Claude enhanced prompt:', textContent.text);
-      return textContent.text;
+      console.log('Claude enhanced prompts:', textContent.text);
+
+      // Parse numbered prompts from response
+      const lines = textContent.text.split('\n').filter(line => line.trim());
+      const prompts: string[] = [];
+
+      for (const line of lines) {
+        // Match lines starting with numbers like "1." or "1)" or just numbered
+        const match = line.match(/^\d+[\.\)]\s*(.+)/);
+        if (match) {
+          prompts.push(match[1].trim());
+        }
+      }
+
+      // If we got the right number of prompts, return them
+      if (prompts.length >= variationCount) {
+        return prompts.slice(0, variationCount);
+      }
+
+      // Fallback: if parsing failed, use the whole response for first variation
+      // and add modifiers for others
+      const basePrompt = prompts[0] || textContent.text.split('\n')[0] || userPrompt;
+      return generateFallbackVariations(basePrompt, variationCount);
     }
 
-    return userPrompt || 'A professional advertisement variation with enhanced visual appeal';
+    return generateFallbackVariations(userPrompt || 'A professional advertisement', variationCount);
   } catch (error) {
     console.error('Claude prompt enhancement failed:', error);
-    // Fall back to original prompt if Claude fails
-    return userPrompt || 'A professional advertisement variation';
+    return generateFallbackVariations(userPrompt || 'A professional advertisement variation', variationCount);
   }
+}
+
+// Generate fallback variations with style modifiers when Claude fails
+function generateFallbackVariations(basePrompt: string, count: number): string[] {
+  const modifiers = [
+    'with warm golden hour lighting',
+    'with cool blue tones and modern aesthetic',
+    'with vibrant saturated colors',
+    'with soft natural lighting',
+    'with dramatic contrast and shadows',
+    'with minimalist clean composition',
+    'with energetic dynamic feel',
+    'with calm serene atmosphere',
+    'with bold contemporary style',
+    'with classic timeless look',
+  ];
+
+  const prompts: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const modifier = modifiers[i % modifiers.length];
+    prompts.push(`${basePrompt}, ${modifier}`);
+  }
+  return prompts;
 }
 
 // Generate image using the appropriate AI service
@@ -391,17 +440,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (jobsError) throw jobsError;
 
-      // Use Claude to enhance the prompt once for all variations
-      let enhancedPrompt = prompt || '';
+      // Use Claude to generate unique prompts for each variation
+      let enhancedPrompts: string[] = [];
       try {
-        enhancedPrompt = await enhancePromptWithClaude(
+        enhancedPrompts = await enhancePromptsWithClaude(
           prompt || '',
           sourceAssetUrl,
-          variationTypes || []
+          variationTypes || [],
+          variationCount
         );
+        console.log(`Generated ${enhancedPrompts.length} unique prompts for ${variationCount} variations`);
       } catch (e) {
-        console.log('Skipping Claude enhancement, using original prompt');
-        enhancedPrompt = prompt || 'A creative advertisement variation';
+        console.log('Skipping Claude enhancement, using fallback variations');
+        enhancedPrompts = generateFallbackVariations(prompt || 'A creative advertisement variation', variationCount);
       }
 
       // Process each job with AI generation
@@ -413,10 +464,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .update({ status: 'processing', progress: 50 })
             .eq('id', job.id);
 
-          // Generate the image/video using AI with Claude-enhanced prompt
+          // Get the unique prompt for this variation index
+          const variationPrompt = enhancedPrompts[job.variation_index] || enhancedPrompts[0] || prompt;
+          console.log(`Job ${job.id} (variation ${job.variation_index}): ${variationPrompt.substring(0, 100)}...`);
+
+          // Generate the image/video using AI with variation-specific prompt
           const tempUrl = await generateImage(
             modelId,
-            enhancedPrompt,
+            variationPrompt,
             sourceAssetUrl || undefined,
             negativePrompt
           );
