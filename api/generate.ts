@@ -88,46 +88,51 @@ async function enhancePromptsWithClaude(
   try {
     const anthropic = getAnthropic();
 
-    const systemPrompt = `You are a creative director for advertising. Your job is to write precise, detailed prompts for AI image generation that will create ad variations.
+    const systemPrompt = `You are a prompt generation machine. Your ONLY job is to output numbered image generation prompts.
 
-Guidelines:
-- Keep the core subject, product, and branding elements from the original
-- Each variation should be DISTINCTLY DIFFERENT from the others
-- Focus on different aspects: lighting changes, color grading, background variations, mood shifts, time of day, weather, seasonal themes
-- Be specific about visual details: colors, composition, style
-- Keep each prompt concise but descriptive (2-3 sentences max)
-- Do NOT change the main subject or product
-- Output ONLY the prompts, one per line, numbered 1. 2. 3. etc.`;
+CRITICAL RULES:
+- Output ONLY numbered prompts (1. prompt here, 2. prompt here, etc.)
+- NO conversation, NO questions, NO explanations
+- NO "I'd be happy to help" or similar phrases
+- Each prompt should be 1-2 sentences describing an image to generate
+- Make each prompt distinctly different (vary lighting, mood, colors, style, background)
+- Start your response IMMEDIATELY with "1." followed by the first prompt`;
 
-    const userMessage = sourceImageUrl
-      ? `The user uploaded an advertisement image. They want ${variationCount} UNIQUE variations with these types: ${variationTypes.join(', ')}.
+    const variationTypesText = variationTypes.length > 0
+      ? `Variation styles to incorporate: ${variationTypes.join(', ')}.`
+      : '';
 
-Their additional direction: "${userPrompt || 'Create subtle creative variations of this ad'}"
+    const userDirection = userPrompt || 'professional advertisement with creative variations';
 
-Write ${variationCount} DIFFERENT prompts for an AI image model. Each prompt should create a distinctly different variation while keeping the main subject and branding intact. Make each one unique - vary the lighting, mood, colors, background elements, or style between them.
+    const userMessage = `Generate exactly ${variationCount} different image prompts for: "${userDirection}"
 
-Output exactly ${variationCount} prompts, numbered 1. through ${variationCount}.`
-      : `Write ${variationCount} DIFFERENT prompts for an AI image model based on this direction: "${userPrompt}"
+${variationTypesText}
 
-Each prompt should be distinctly different - vary the style, mood, lighting, or approach.
+Requirements:
+- Each prompt describes a complete image that an AI can generate
+- Prompts should vary in: lighting, color palette, mood, background, or artistic style
+- Keep the core subject consistent across all prompts
 
-Output exactly ${variationCount} prompts, numbered 1. through ${variationCount}.`;
+Output ${variationCount} numbered prompts now:`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       messages: [
-        { role: 'user', content: userMessage }
+        { role: 'user', content: userMessage },
+        { role: 'assistant', content: '1.' }  // Prefill to force prompt format
       ],
       system: systemPrompt,
     });
 
     const textContent = response.content.find(c => c.type === 'text');
     if (textContent && textContent.type === 'text') {
-      console.log('Claude enhanced prompts:', textContent.text);
+      // Prepend "1." since we used it as a prefill
+      const fullResponse = '1.' + textContent.text;
+      console.log('Claude enhanced prompts:', fullResponse);
 
       // Parse numbered prompts from response
-      const lines = textContent.text.split('\n').filter(line => line.trim());
+      const lines = fullResponse.split('\n').filter(line => line.trim());
       const prompts: string[] = [];
 
       for (const line of lines) {
@@ -145,11 +150,11 @@ Output exactly ${variationCount} prompts, numbered 1. through ${variationCount}.
 
       // Fallback: if parsing failed, use the whole response for first variation
       // and add modifiers for others
-      const basePrompt = prompts[0] || textContent.text.split('\n')[0] || userPrompt;
+      const basePrompt = prompts[0] || fullResponse.split('\n')[0] || userDirection;
       return generateFallbackVariations(basePrompt, variationCount);
     }
 
-    return generateFallbackVariations(userPrompt || 'A professional advertisement', variationCount);
+    return generateFallbackVariations(userDirection, variationCount);
   } catch (error) {
     console.error('Claude prompt enhancement failed:', error);
     return generateFallbackVariations(userPrompt || 'A professional advertisement variation', variationCount);
