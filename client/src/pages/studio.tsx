@@ -557,7 +557,7 @@ export default function Studio() {
         {/* Left Sidebar */}
         <aside
           className={`shrink-0 border-r border-border bg-card transition-all ${
-            leftPanelOpen ? "w-80" : "w-0"
+            leftPanelOpen ? "w-[360px]" : "w-0"
           }`}
         >
           {leftPanelOpen && (
@@ -761,7 +761,7 @@ export default function Studio() {
         {/* Right Detail Panel */}
         <aside
           className={`shrink-0 border-l border-border bg-card transition-all ${
-            rightPanelOpen ? "w-80" : "w-0"
+            rightPanelOpen ? "w-[360px]" : "w-0"
           }`}
         >
           {rightPanelOpen && (

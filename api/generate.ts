@@ -140,31 +140,19 @@ async function generateImage(
 
   switch (modelId) {
     case 'nanobanana': {
+      // Google Nano Banana - image generation and editing from Google
       const replicate = getReplicate();
+      const input: Record<string, any> = {
+        prompt: prompt,
+        aspect_ratio: '1:1',
+        output_format: 'png',
+      };
+      // Use image_input array if source image provided
       if (sourceImageUrl) {
-        const output = await replicate.run(
-          'google/nano-banana',
-          {
-            input: {
-              prompt: prompt,
-              image: sourceImageUrl,
-            }
-          }
-        );
-        if (Array.isArray(output)) return output[0] as string;
-        if (typeof output === 'object' && output !== null && 'output' in output) {
-          return (output as any).output as string;
-        }
-        return output as string;
+        input.image_input = [sourceImageUrl];
+        input.aspect_ratio = 'match_input_image';
       }
-      const output = await replicate.run(
-        'google/nano-banana',
-        {
-          input: {
-            prompt: prompt,
-          }
-        }
-      );
+      const output = await replicate.run('google/nano-banana', { input });
       if (Array.isArray(output)) return output[0] as string;
       if (typeof output === 'object' && output !== null && 'output' in output) {
         return (output as any).output as string;
