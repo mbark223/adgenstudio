@@ -376,7 +376,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === 'POST') {
       const supabase = getSupabase();
-      const { projectId, sourceAssetId, variationCount, variationTypes, sizes, modelId, prompt, negativePrompt } = req.body;
+      const { projectId, sourceAssetId, variationCount, variationTypes, sizes, modelId, prompt, negativePrompt, enhancedPrompts: providedPrompts } = req.body;
 
       let actualProjectId = projectId;
 
@@ -440,19 +440,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (jobsError) throw jobsError;
 
-      // Use Claude to generate unique prompts for each variation
+      // Use provided prompts if available, otherwise generate with Claude
       let enhancedPrompts: string[] = [];
-      try {
-        enhancedPrompts = await enhancePromptsWithClaude(
-          prompt || '',
-          sourceAssetUrl,
-          variationTypes || [],
-          variationCount
-        );
-        console.log(`Generated ${enhancedPrompts.length} unique prompts for ${variationCount} variations`);
-      } catch (e) {
-        console.log('Skipping Claude enhancement, using fallback variations');
-        enhancedPrompts = generateFallbackVariations(prompt || 'A creative advertisement variation', variationCount);
+      if (providedPrompts && Array.isArray(providedPrompts) && providedPrompts.length > 0) {
+        // Use pre-approved prompts from preview
+        enhancedPrompts = providedPrompts;
+        console.log(`Using ${enhancedPrompts.length} pre-approved prompts from preview`);
+      } else {
+        // Generate prompts with Claude
+        try {
+          enhancedPrompts = await enhancePromptsWithClaude(
+            prompt || '',
+            sourceAssetUrl,
+            variationTypes || [],
+            variationCount
+          );
+          console.log(`Generated ${enhancedPrompts.length} unique prompts for ${variationCount} variations`);
+        } catch (e) {
+          console.log('Skipping Claude enhancement, using fallback variations');
+          enhancedPrompts = generateFallbackVariations(prompt || 'A creative advertisement variation', variationCount);
+        }
       }
 
       // Process each job with AI generation

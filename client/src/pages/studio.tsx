@@ -31,6 +31,7 @@ import { ResultsGrid } from "@/components/results-grid";
 import { DetailPanel } from "@/components/detail-panel";
 import { Lightbox } from "@/components/lightbox";
 import { ExportModal, type ExportOptions } from "@/components/export-modal";
+import { PromptPreviewModal } from "@/components/prompt-preview-modal";
 import { WorkflowStepper } from "@/components/workflow-stepper";
 import { VideoCards } from "@/components/video-cards";
 import { availableModels } from "@shared/schema";
@@ -105,6 +106,10 @@ export default function Studio() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
+  // Prompt Preview State
+  const [promptPreviewOpen, setPromptPreviewOpen] = useState(false);
+  const [previewedPrompts, setPreviewedPrompts] = useState<string[]>([]);
+
   // Fetch variations
   const { data: variations = [], refetch: refetchVariations } = useQuery<Variation[]>({
     queryKey: ["/api/variations", projectId],
@@ -169,9 +174,33 @@ export default function Studio() {
     },
   });
 
+  // Preview prompts mutation - fetches Claude-enhanced prompts without generating
+  const previewPromptsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/preview-prompts", {
+        prompt,
+        sourceAssetId: sourceAsset?.id,
+        variationTypes: selectedVariationTypes,
+        variationCount,
+      });
+      return response.json();
+    },
+    onSuccess: (data: { prompts: string[] }) => {
+      setPreviewedPrompts(data.prompts);
+      setPromptPreviewOpen(true);
+    },
+    onError: () => {
+      toast({
+        title: "Failed to generate prompts",
+        description: "There was an error generating preview prompts. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Generate variations mutation
   const generateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (params?: { enhancedPrompts?: string[] }) => {
       const response = await apiRequest("POST", "/api/generate", {
         projectId,
         sourceAssetId: sourceAsset?.id,
@@ -181,6 +210,7 @@ export default function Studio() {
         modelId: selectedModelId,
         prompt,
         negativePrompt,
+        enhancedPrompts: params?.enhancedPrompts,
       });
       return response.json();
     },
@@ -339,7 +369,7 @@ export default function Studio() {
     [uploadMutation]
   );
 
-  // Handle generation
+  // Handle generation - opens preview modal first
   const handleGenerate = useCallback(() => {
     if (!sourceAsset) {
       toast({
@@ -349,7 +379,7 @@ export default function Studio() {
       });
       return;
     }
-    
+
     if (selectedSizes.length === 0) {
       toast({
         title: "No sizes selected",
@@ -358,9 +388,21 @@ export default function Studio() {
       });
       return;
     }
-    
-    generateMutation.mutate();
-  }, [sourceAsset, selectedSizes, generateMutation, toast]);
+
+    // Open preview modal and fetch prompts from Claude
+    previewPromptsMutation.mutate();
+  }, [sourceAsset, selectedSizes, previewPromptsMutation, toast]);
+
+  // Handle confirming generation after preview
+  const handleConfirmGeneration = useCallback(() => {
+    setPromptPreviewOpen(false);
+    generateMutation.mutate({ enhancedPrompts: previewedPrompts });
+  }, [previewedPrompts, generateMutation]);
+
+  // Handle regenerating prompts
+  const handleRegeneratePrompts = useCallback(() => {
+    previewPromptsMutation.mutate();
+  }, [previewPromptsMutation]);
 
   // Handle export
   const handleExport = useCallback((options: ExportOptions) => {
@@ -810,6 +852,20 @@ export default function Studio() {
         onExport={handleExport}
         isExporting={isExporting}
         exportProgress={exportProgress}
+      />
+
+      {/* Prompt Preview Modal */}
+      <PromptPreviewModal
+        open={promptPreviewOpen}
+        onOpenChange={setPromptPreviewOpen}
+        prompts={previewedPrompts}
+        onPromptsChange={setPreviewedPrompts}
+        onRegenerate={handleRegeneratePrompts}
+        onConfirm={handleConfirmGeneration}
+        isLoading={previewPromptsMutation.isPending}
+        isGenerating={generateMutation.isPending}
+        variationCount={variationCount}
+        selectedSizesCount={selectedSizes.length}
       />
     </div>
   );
