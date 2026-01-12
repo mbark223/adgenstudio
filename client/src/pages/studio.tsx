@@ -30,7 +30,7 @@ import { GenerationQueue } from "@/components/generation-queue";
 import { ResultsGrid } from "@/components/results-grid";
 import { DetailPanel } from "@/components/detail-panel";
 import { Lightbox } from "@/components/lightbox";
-import { ExportModal, type ExportOptions } from "@/components/export-modal";
+import { ExportModal } from "@/components/export-modal";
 import { PromptPreviewModal } from "@/components/prompt-preview-modal";
 import { WorkflowStepper } from "@/components/workflow-stepper";
 import { VideoCards } from "@/components/video-cards";
@@ -102,13 +102,11 @@ export default function Studio() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Export State
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
 
   // Prompt Preview State
   const [promptPreviewOpen, setPromptPreviewOpen] = useState(false);
   const [previewedPrompts, setPreviewedPrompts] = useState<string[]>([]);
+  const [regeneratingIndices, setRegeneratingIndices] = useState<number[]>([]);
 
   // Fetch variations
   const { data: variations = [], refetch: refetchVariations } = useQuery<Variation[]>({
@@ -176,20 +174,30 @@ export default function Studio() {
 
   // Preview prompts mutation - fetches Claude-enhanced prompts without generating
   const previewPromptsMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (params?: { indicesToRegenerate?: number[] }) => {
       const response = await apiRequest("POST", "/api/preview-prompts", {
         prompt,
         sourceAssetId: sourceAsset?.id,
         variationTypes: selectedVariationTypes,
         variationCount,
+        existingPrompts: params?.indicesToRegenerate ? previewedPrompts : undefined,
+        indicesToRegenerate: params?.indicesToRegenerate,
       });
       return response.json();
+    },
+    onMutate: (params) => {
+      // Track which indices are being regenerated
+      if (params?.indicesToRegenerate) {
+        setRegeneratingIndices(params.indicesToRegenerate);
+      }
     },
     onSuccess: (data: { prompts: string[] }) => {
       setPreviewedPrompts(data.prompts);
       setPromptPreviewOpen(true);
+      setRegeneratingIndices([]);
     },
     onError: () => {
+      setRegeneratingIndices([]);
       toast({
         title: "Failed to generate prompts",
         description: "There was an error generating preview prompts. Please try again.",
@@ -399,33 +407,10 @@ export default function Studio() {
     generateMutation.mutate({ enhancedPrompts: previewedPrompts });
   }, [previewedPrompts, generateMutation]);
 
-  // Handle regenerating prompts
-  const handleRegeneratePrompts = useCallback(() => {
-    previewPromptsMutation.mutate();
+  // Handle regenerating prompts (optionally specific indices only)
+  const handleRegeneratePrompts = useCallback((indicesToRegenerate?: number[]) => {
+    previewPromptsMutation.mutate(indicesToRegenerate ? { indicesToRegenerate } : undefined);
   }, [previewPromptsMutation]);
-
-  // Handle export
-  const handleExport = useCallback((options: ExportOptions) => {
-    setIsExporting(true);
-    setExportProgress(0);
-    
-    // Simulate export progress
-    const interval = setInterval(() => {
-      setExportProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsExporting(false);
-          setExportModalOpen(false);
-          toast({
-            title: "Export complete",
-            description: `${selectedVariationIds.size || variations.length} files have been exported.`,
-          });
-          return 0;
-        }
-        return prev + 10;
-      });
-    }, 200);
-  }, [selectedVariationIds.size, variations.length, toast]);
 
   // Selection handlers
   const handleSelectVariation = useCallback((id: string, selected: boolean) => {
@@ -849,9 +834,6 @@ export default function Studio() {
             : variations
         }
         projectName={projectName}
-        onExport={handleExport}
-        isExporting={isExporting}
-        exportProgress={exportProgress}
       />
 
       {/* Prompt Preview Modal */}
@@ -866,6 +848,7 @@ export default function Studio() {
         isGenerating={generateMutation.isPending}
         variationCount={variationCount}
         selectedSizesCount={selectedSizes.length}
+        regeneratingIndices={regeneratingIndices}
       />
     </div>
   );

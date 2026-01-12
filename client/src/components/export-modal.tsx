@@ -10,12 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, FileArchive, Copy, Check } from "lucide-react";
+import { Download, FileArchive, Copy, Check, Loader2 } from "lucide-react";
 import type { Variation } from "@shared/schema";
 
 interface ExportModalProps {
@@ -23,9 +22,6 @@ interface ExportModalProps {
   onOpenChange: (open: boolean) => void;
   variations: Variation[];
   projectName: string;
-  onExport: (options: ExportOptions) => void;
-  isExporting: boolean;
-  exportProgress: number;
 }
 
 export interface ExportOptions {
@@ -43,33 +39,61 @@ const namingTokens = [
   { token: '{date}', description: 'Date (YYYY-MM-DD)' },
 ];
 
+// Helper to generate filename from template
+function generateFilename(
+  template: string,
+  variation: Variation,
+  projectName: string,
+  format: ExportOptions['format']
+): string {
+  const filename = template
+    .replace('{project}', projectName.toLowerCase().replace(/\s+/g, '_'))
+    .replace('{platform}', variation.sizeConfig.platform)
+    .replace('{size}', variation.sizeConfig.name.toLowerCase().replace(/\s+/g, '_'))
+    .replace('{dimensions}', `${variation.sizeConfig.width}x${variation.sizeConfig.height}`)
+    .replace('{variation}', String(variation.variationIndex + 1).padStart(2, '0'))
+    .replace('{date}', new Date().toISOString().split('T')[0]);
+
+  const ext = format === 'original' ? (variation.type === 'video' ? 'mp4' : 'png') : format;
+  return `${filename}.${ext}`;
+}
+
+// Download a single file
+async function downloadFile(url: string, filename: string): Promise<void> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error(`Failed to download ${filename}:`, error);
+    // Fallback: open in new tab
+    window.open(url, '_blank');
+  }
+}
+
 export function ExportModal({
   open,
   onOpenChange,
   variations,
   projectName,
-  onExport,
-  isExporting,
-  exportProgress,
 }: ExportModalProps) {
   const [format, setFormat] = useState<ExportOptions['format']>('original');
   const [namingTemplate, setNamingTemplate] = useState('{project}_{platform}_{size}_v{variation}');
-  const [downloadType, setDownloadType] = useState<ExportOptions['downloadType']>('zip');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [currentFile, setCurrentFile] = useState('');
 
   const generatePreviewFilenames = () => {
-    return variations.slice(0, 3).map((v) => {
-      let filename = namingTemplate
-        .replace('{project}', projectName.toLowerCase().replace(/\s+/g, '_'))
-        .replace('{platform}', v.sizeConfig.platform)
-        .replace('{size}', v.sizeConfig.name.toLowerCase().replace(/\s+/g, '_'))
-        .replace('{dimensions}', `${v.sizeConfig.width}x${v.sizeConfig.height}`)
-        .replace('{variation}', String(v.variationIndex + 1).padStart(2, '0'))
-        .replace('{date}', new Date().toISOString().split('T')[0]);
-      
-      const ext = format === 'original' ? (v.type === 'video' ? 'mp4' : 'png') : format;
-      return `${filename}.${ext}`;
-    });
+    return variations.slice(0, 3).map((v) => generateFilename(namingTemplate, v, projectName, format));
   };
 
   const handleCopyToken = (token: string) => {
@@ -78,12 +102,41 @@ export function ExportModal({
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
-  const handleExport = () => {
-    onExport({
-      format,
-      namingTemplate,
-      downloadType,
-    });
+  const handleExport = async () => {
+    setIsExporting(true);
+    setExportProgress(0);
+
+    try {
+      for (let i = 0; i < variations.length; i++) {
+        const variation = variations[i];
+        const filename = generateFilename(namingTemplate, variation, projectName, format);
+
+        setCurrentFile(filename);
+        setExportProgress(Math.round((i / variations.length) * 100));
+
+        await downloadFile(variation.url, filename);
+
+        // Small delay between downloads to prevent browser blocking
+        if (i < variations.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      setExportProgress(100);
+
+      // Close modal after a brief moment
+      setTimeout(() => {
+        setIsExporting(false);
+        setExportProgress(0);
+        setCurrentFile('');
+        onOpenChange(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Export failed:', error);
+      setIsExporting(false);
+      setExportProgress(0);
+      setCurrentFile('');
+    }
   };
 
   return (
@@ -95,50 +148,44 @@ export function ExportModal({
             Export Variations
           </DialogTitle>
           <DialogDescription>
-            Configure export settings for {variations.length} variation{variations.length !== 1 ? 's' : ''}.
+            Download {variations.length} variation{variations.length !== 1 ? 's' : ''} to your computer.
           </DialogDescription>
         </DialogHeader>
 
         {isExporting ? (
           <div className="py-8 space-y-4">
-            <div className="text-center">
-              <p className="text-sm font-medium mb-2">Preparing your files...</p>
-              <p className="text-xs text-muted-foreground">
-                {Math.round(exportProgress)}% complete
-              </p>
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="text-center">
+                <p className="text-sm font-medium mb-1">Downloading files...</p>
+                <p className="text-xs text-muted-foreground font-mono truncate max-w-[300px]">
+                  {currentFile}
+                </p>
+              </div>
             </div>
             <Progress value={exportProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center">
+              {Math.round(exportProgress)}% complete
+            </p>
           </div>
         ) : (
           <div className="space-y-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Format</Label>
-                <Select value={format} onValueChange={(v) => setFormat(v as ExportOptions['format'])}>
-                  <SelectTrigger data-testid="select-export-format">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="original">Original Format</SelectItem>
-                    <SelectItem value="png">PNG</SelectItem>
-                    <SelectItem value="jpg">JPG</SelectItem>
-                    <SelectItem value="webp">WebP</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Download Type</Label>
-                <Select value={downloadType} onValueChange={(v) => setDownloadType(v as ExportOptions['downloadType'])}>
-                  <SelectTrigger data-testid="select-download-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="zip">ZIP Archive</SelectItem>
-                    <SelectItem value="individual">Individual Files</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Format</Label>
+              <Select value={format} onValueChange={(v) => setFormat(v as ExportOptions['format'])}>
+                <SelectTrigger data-testid="select-export-format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="original">Original Format</SelectItem>
+                  <SelectItem value="png">PNG</SelectItem>
+                  <SelectItem value="jpg">JPG</SelectItem>
+                  <SelectItem value="webp">WebP</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Files will be downloaded individually to your Downloads folder.
+              </p>
             </div>
 
             <Separator />
@@ -173,7 +220,7 @@ export function ExportModal({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Preview</Label>
+              <Label className="text-xs text-muted-foreground">Preview filenames</Label>
               <ScrollArea className="h-[80px] rounded-md border bg-muted/30 p-3">
                 <div className="space-y-1.5">
                   {generatePreviewFilenames().map((filename, i) => (
@@ -196,9 +243,9 @@ export function ExportModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isExporting}>
             Cancel
           </Button>
-          <Button onClick={handleExport} disabled={isExporting} data-testid="button-confirm-export">
+          <Button onClick={handleExport} disabled={isExporting || variations.length === 0} data-testid="button-confirm-export">
             <Download className="h-4 w-4 mr-2" />
-            Export {variations.length} File{variations.length !== 1 ? 's' : ''}
+            Download {variations.length} File{variations.length !== 1 ? 's' : ''}
           </Button>
         </DialogFooter>
       </DialogContent>

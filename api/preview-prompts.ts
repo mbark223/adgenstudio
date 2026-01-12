@@ -124,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'POST') {
-      const { prompt, sourceAssetId, variationTypes, variationCount } = req.body;
+      const { prompt, sourceAssetId, variationTypes, variationCount, existingPrompts, indicesToRegenerate } = req.body;
 
       // Get the source asset URL if provided
       let sourceAssetUrl: string | null = null;
@@ -141,7 +141,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      // Generate prompts using Claude
+      // If regenerating specific indices, only generate those
+      if (existingPrompts && indicesToRegenerate && indicesToRegenerate.length > 0) {
+        const countToGenerate = indicesToRegenerate.length;
+        const newPrompts = await enhancePromptsWithClaude(
+          prompt || '',
+          sourceAssetUrl,
+          variationTypes || [],
+          countToGenerate
+        );
+
+        // Merge new prompts into existing ones at the specified indices
+        const mergedPrompts = [...existingPrompts];
+        indicesToRegenerate.forEach((index: number, i: number) => {
+          if (index < mergedPrompts.length && i < newPrompts.length) {
+            mergedPrompts[index] = newPrompts[i];
+          }
+        });
+
+        return res.status(200).json({ prompts: mergedPrompts });
+      }
+
+      // Generate all prompts using Claude
       const prompts = await enhancePromptsWithClaude(
         prompt || '',
         sourceAssetUrl,
