@@ -4,18 +4,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { variationTypes, type VariationTypeId } from "@shared/schema";
+import { Shield, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
+import { variationTypes, brandProtectionOptions, type VariationTypeId, type BrandProtectionId } from "@shared/schema";
 
 interface VariationConfigProps {
   variationCount: number;
   onVariationCountChange: (count: number) => void;
   selectedTypes: VariationTypeId[];
   onTypesChange: (types: VariationTypeId[]) => void;
+  selectedProtections: BrandProtectionId[];
+  onProtectionsChange: (protections: BrandProtectionId[]) => void;
   prompt: string;
   onPromptChange: (prompt: string) => void;
   negativePrompt: string;
   onNegativePromptChange: (prompt: string) => void;
   assetType: 'image' | 'video' | null;
+  previewedPrompts?: string[];
+  isLoadingPrompts?: boolean;
 }
 
 export function VariationConfig({
@@ -23,17 +29,30 @@ export function VariationConfig({
   onVariationCountChange,
   selectedTypes,
   onTypesChange,
+  selectedProtections,
+  onProtectionsChange,
   prompt,
   onPromptChange,
   negativePrompt,
   onNegativePromptChange,
   assetType,
+  previewedPrompts = [],
+  isLoadingPrompts = false,
 }: VariationConfigProps) {
+  const [promptsExpanded, setPromptsExpanded] = useState(false);
   const handleTypeToggle = (typeId: VariationTypeId) => {
     if (selectedTypes.includes(typeId)) {
       onTypesChange(selectedTypes.filter((t) => t !== typeId));
     } else {
       onTypesChange([...selectedTypes, typeId]);
+    }
+  };
+
+  const handleProtectionToggle = (protectionId: BrandProtectionId) => {
+    if (selectedProtections.includes(protectionId)) {
+      onProtectionsChange(selectedProtections.filter((p) => p !== protectionId));
+    } else {
+      onProtectionsChange([...selectedProtections, protectionId]);
     }
   };
 
@@ -111,16 +130,62 @@ export function VariationConfig({
       </div>
 
       <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-muted-foreground" />
+          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Brand Protection
+          </Label>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {brandProtectionOptions.map((protection) => (
+            <label
+              key={protection.id}
+              className={`flex cursor-pointer items-center gap-2 rounded-md border p-2.5 transition-colors ${
+                selectedProtections.includes(protection.id as BrandProtectionId)
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/50"
+              }`}
+            >
+              <Checkbox
+                checked={selectedProtections.includes(protection.id as BrandProtectionId)}
+                onCheckedChange={() => handleProtectionToggle(protection.id as BrandProtectionId)}
+                data-testid={`checkbox-protection-${protection.id}`}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-none truncate">{protection.name}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Selected protections ensure these elements stay consistent across variations
+        </p>
+      </div>
+
+      <div className="space-y-3">
         <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Creative Direction
         </Label>
         <Textarea
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          placeholder="Describe your creative direction... (e.g., 'Make background more tropical, add palm trees')"
+          placeholder="Describe your creative direction... Use {{variable}} tokens for dynamic content (e.g., 'Feature {{product_name}} with tropical background')"
           className="min-h-[100px] resize-none font-mono text-sm"
           data-testid="textarea-prompt"
         />
+        <div className="flex flex-wrap gap-1">
+          <span className="text-xs text-muted-foreground">Tokens:</span>
+          {['{{product_name}}', '{{tagline}}', '{{brand}}', '{{cta}}'].map((token) => (
+            <Badge
+              key={token}
+              variant="outline"
+              className="text-[10px] cursor-pointer hover:bg-primary/10"
+              onClick={() => onPromptChange(prompt + ' ' + token)}
+            >
+              {token}
+            </Badge>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -135,6 +200,47 @@ export function VariationConfig({
           data-testid="textarea-negative-prompt"
         />
       </div>
+
+      {/* Live Prompts Preview */}
+      {(previewedPrompts.length > 0 || isLoadingPrompts) && (
+        <div className="space-y-2 pt-2 border-t border-border">
+          <button
+            type="button"
+            onClick={() => setPromptsExpanded(!promptsExpanded)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-2">
+              {isLoadingPrompts ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Sparkles className="h-4 w-4 text-primary" />
+              )}
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground cursor-pointer">
+                {isLoadingPrompts ? 'Generating Directions...' : `${previewedPrompts.length} Directions Ready`}
+              </Label>
+            </div>
+            {promptsExpanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {promptsExpanded && previewedPrompts.length > 0 && (
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {previewedPrompts.map((p, i) => (
+                <div
+                  key={i}
+                  className="rounded-md border border-border bg-muted/30 p-2"
+                >
+                  <p className="text-xs text-muted-foreground mb-1">Variation {i + 1}</p>
+                  <p className="text-xs font-mono leading-relaxed">{p}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

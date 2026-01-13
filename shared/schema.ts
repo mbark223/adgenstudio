@@ -114,6 +114,17 @@ export const variationTypes = [
 export type VariationType = typeof variationTypes[number];
 export type VariationTypeId = VariationType['id'];
 
+// Brand protection options
+export const brandProtectionOptions = [
+  { id: 'logo-placement', name: 'Logo Placement', description: 'Keep logo in same position' },
+  { id: 'brand-colors', name: 'Brand Colors', description: 'Maintain brand color palette' },
+  { id: 'ad-elements', name: 'Ad Elements', description: 'Preserve key visual elements' },
+  { id: 'ad-text', name: 'Ad Text', description: 'Keep text content unchanged' },
+] as const;
+
+export type BrandProtection = typeof brandProtectionOptions[number];
+export type BrandProtectionId = BrandProtection['id'];
+
 // Size configuration
 export const sizeConfigSchema = z.object({
   name: z.string(),

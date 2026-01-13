@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ import type {
   SizeConfig,
   VariationTypeId,
   AIModelId,
+  BrandProtectionId,
 } from "@shared/schema";
 
 export default function Studio() {
@@ -89,6 +90,7 @@ export default function Studio() {
     "background-swap",
     "style-transfer",
   ]);
+  const [selectedBrandProtections, setSelectedBrandProtections] = useState<BrandProtectionId[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<SizeConfig[]>(defaultSizes);
   const [selectedModelId, setSelectedModelId] = useState<AIModelId>("nanobanana");
   const [prompt, setPrompt] = useState("");
@@ -174,16 +176,17 @@ export default function Studio() {
 
   // Preview prompts mutation - fetches Claude-enhanced prompts without generating
   const previewPromptsMutation = useMutation({
-    mutationFn: async (params?: { indicesToRegenerate?: number[] }) => {
+    mutationFn: async (params?: { indicesToRegenerate?: number[]; openModal?: boolean }) => {
       const response = await apiRequest("POST", "/api/preview-prompts", {
         prompt,
         sourceAssetId: sourceAsset?.id,
         variationTypes: selectedVariationTypes,
+        brandProtections: selectedBrandProtections,
         variationCount,
         existingPrompts: params?.indicesToRegenerate ? previewedPrompts : undefined,
         indicesToRegenerate: params?.indicesToRegenerate,
       });
-      return response.json();
+      return { ...(await response.json()), openModal: params?.openModal ?? true };
     },
     onMutate: (params) => {
       // Track which indices are being regenerated
@@ -191,9 +194,12 @@ export default function Studio() {
         setRegeneratingIndices(params.indicesToRegenerate);
       }
     },
-    onSuccess: (data: { prompts: string[] }) => {
+    onSuccess: (data: { prompts: string[]; openModal: boolean }) => {
       setPreviewedPrompts(data.prompts);
-      setPromptPreviewOpen(true);
+      // Only open modal if explicitly requested (not during live updates)
+      if (data.openModal) {
+        setPromptPreviewOpen(true);
+      }
       setRegeneratingIndices([]);
     },
     onError: () => {
@@ -377,6 +383,28 @@ export default function Studio() {
     [uploadMutation]
   );
 
+  // Live prompt generation - regenerate prompts when config changes
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    // Skip first render
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Only trigger if we have an asset and variation types selected
+    if (!sourceAsset || selectedVariationTypes.length === 0) {
+      return;
+    }
+
+    // Debounce the prompt generation
+    const timer = setTimeout(() => {
+      previewPromptsMutation.mutate({ openModal: false });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [selectedVariationTypes, selectedBrandProtections, prompt, variationCount]);
+
   // Handle generation - opens preview modal first
   const handleGenerate = useCallback(() => {
     if (!sourceAsset) {
@@ -397,9 +425,14 @@ export default function Studio() {
       return;
     }
 
-    // Open preview modal and fetch prompts from Claude
-    previewPromptsMutation.mutate(undefined);
-  }, [sourceAsset, selectedSizes, previewPromptsMutation, toast]);
+    // If we already have previewed prompts, just open the modal
+    if (previewedPrompts.length > 0) {
+      setPromptPreviewOpen(true);
+    } else {
+      // Otherwise fetch prompts from Claude and open modal
+      previewPromptsMutation.mutate({ openModal: true });
+    }
+  }, [sourceAsset, selectedSizes, previewPromptsMutation, previewedPrompts, toast]);
 
   // Handle confirming generation after preview
   const handleConfirmGeneration = useCallback(() => {
@@ -633,11 +666,15 @@ export default function Studio() {
                         onVariationCountChange={setVariationCount}
                         selectedTypes={selectedVariationTypes}
                         onTypesChange={setSelectedVariationTypes}
+                        selectedProtections={selectedBrandProtections}
+                        onProtectionsChange={setSelectedBrandProtections}
                         prompt={prompt}
                         onPromptChange={setPrompt}
                         negativePrompt={negativePrompt}
                         onNegativePromptChange={setNegativePrompt}
                         assetType={sourceAsset?.type || null}
+                        previewedPrompts={previewedPrompts}
+                        isLoadingPrompts={previewPromptsMutation.isPending}
                       />
                     </AccordionContent>
                   </AccordionItem>

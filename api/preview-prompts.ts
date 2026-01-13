@@ -14,15 +14,48 @@ function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
+// Map brand protection IDs to descriptive instructions
+function getBrandProtectionInstructions(protections: string[]): string {
+  if (!protections || protections.length === 0) return '';
+
+  const protectionDescriptions: Record<string, string> = {
+    'logo-placement': 'logo position, size, and visibility',
+    'brand-colors': 'brand color palette and color scheme',
+    'ad-elements': 'key visual elements and product placement',
+    'ad-text': 'text content, copy, and typography',
+  };
+
+  const descriptions = protections
+    .map(p => protectionDescriptions[p])
+    .filter(Boolean);
+
+  if (descriptions.length === 0) return '';
+
+  return `\nCRITICAL BRAND PROTECTION - You MUST keep these elements unchanged across all variations: ${descriptions.join(', ')}. These are non-negotiable brand guidelines.`;
+}
+
+// Process variable tokens in the prompt
+function processVariableTokens(prompt: string): string {
+  // Convert {{variable}} to [VARIABLE] for better AI understanding
+  return prompt.replace(/\{\{(\w+)\}\}/g, (_, varName) => `[${varName.toUpperCase()}]`);
+}
+
 // Use Claude to craft multiple unique prompts for image generation variations
 async function enhancePromptsWithClaude(
   userPrompt: string,
   sourceImageUrl: string | null,
   variationTypes: string[],
+  brandProtections: string[],
   variationCount: number
 ): Promise<string[]> {
   try {
     const anthropic = getAnthropic();
+
+    // Process any variable tokens in the user's prompt
+    const processedPrompt = processVariableTokens(userPrompt);
+
+    // Build brand protection instructions
+    const brandInstructions = getBrandProtectionInstructions(brandProtections);
 
     const systemPrompt = `You are a prompt generation machine. Your ONLY job is to output numbered image generation prompts.
 
@@ -32,13 +65,14 @@ CRITICAL RULES:
 - NO "I'd be happy to help" or similar phrases
 - Each prompt should be 1-2 sentences describing an image to generate
 - Make each prompt distinctly different (vary lighting, mood, colors, style, background)
-- Start your response IMMEDIATELY with "1." followed by the first prompt`;
+- Start your response IMMEDIATELY with "1." followed by the first prompt
+- If variable tokens like [PRODUCT_NAME] or [TAGLINE] are present, include them in each prompt${brandInstructions}`;
 
     const variationTypesText = variationTypes.length > 0
       ? `Variation styles to incorporate: ${variationTypes.join(', ')}.`
       : '';
 
-    const userDirection = userPrompt || 'professional advertisement with creative variations';
+    const userDirection = processedPrompt || 'professional advertisement with creative variations';
 
     const userMessage = `Generate exactly ${variationCount} different image prompts for: "${userDirection}"
 
@@ -48,6 +82,7 @@ Requirements:
 - Each prompt describes a complete image that an AI can generate
 - Prompts should vary in: lighting, color palette, mood, background, or artistic style
 - Keep the core subject consistent across all prompts
+- Preserve any [VARIABLE] tokens in your prompts exactly as written
 
 Output ${variationCount} numbered prompts now:`;
 
@@ -129,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'POST') {
-      const { prompt, sourceAssetId, variationTypes, variationCount, existingPrompts, indicesToRegenerate } = req.body;
+      const { prompt, sourceAssetId, variationTypes, brandProtections, variationCount, existingPrompts, indicesToRegenerate } = req.body;
 
       // Get the source asset URL if provided
       let sourceAssetUrl: string | null = null;
@@ -153,6 +188,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           prompt || '',
           sourceAssetUrl,
           variationTypes || [],
+          brandProtections || [],
           countToGenerate
         );
 
@@ -172,6 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         prompt || '',
         sourceAssetUrl,
         variationTypes || [],
+        brandProtections || [],
         variationCount || 3
       );
 
