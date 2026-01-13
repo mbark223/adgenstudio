@@ -58,138 +58,57 @@ export const platformPresets = {
 
 export type PlatformKey = keyof typeof platformPresets;
 
-// Available AI models
+// Available creative styles
 export const availableModels = [
-  // Image Models
-  {
-    id: 'flux-schnell',
-    name: 'Flux Schnell',
-    provider: 'Replicate',
-    type: 'image' as const,
-    capabilities: ['text-to-image', 'fast-generation'],
-    avgGenerationTime: 5,
-  },
+  // Image Styles
   {
     id: 'nanobanana',
-    name: 'Nano Banana',
+    name: 'Quick Create',
     provider: 'Google AI',
     type: 'image' as const,
-    capabilities: ['text-to-image', 'image-to-image', 'image-editing'],
+    capabilities: ['text-to-image', 'image-to-image'],
     avgGenerationTime: 15,
   },
   {
-    id: 'flux-pro',
-    name: 'Flux Pro',
+    id: 'prunaai',
+    name: 'Pro Create',
     provider: 'Replicate',
     type: 'image' as const,
-    capabilities: ['text-to-image', 'image-to-image', 'high-fidelity'],
-    avgGenerationTime: 20,
+    capabilities: ['text-to-image', 'image-to-image'],
+    avgGenerationTime: 3,
   },
-  {
-    id: 'stability-sd3',
-    name: 'Stable Diffusion 3',
-    provider: 'Replicate',
-    type: 'image' as const,
-    capabilities: ['text-to-image', 'image-to-image', 'inpainting'],
-    avgGenerationTime: 15,
-  },
-  {
-    id: 'dall-e-3',
-    name: 'DALL-E 3',
-    provider: 'OpenAI',
-    type: 'image' as const,
-    capabilities: ['text-to-image', 'high-fidelity', 'prompt-following'],
-    avgGenerationTime: 15,
-  },
-  {
-    id: 'gemini-imagen',
-    name: 'Imagen 3',
-    provider: 'Google AI',
-    type: 'image' as const,
-    capabilities: ['text-to-image', 'image-editing', 'high-fidelity'],
-    avgGenerationTime: 10,
-  },
-  // Video Models
-  {
-    id: 'minimax-video',
-    name: 'Minimax Video',
-    provider: 'Minimax',
-    type: 'video' as const,
-    capabilities: ['text-to-video', 'high-quality', 'long-form'],
-    avgGenerationTime: 120,
-  },
+  // Video Styles
   {
     id: 'veo-3',
-    name: 'Google Veo 3',
+    name: 'Quick Video',
     provider: 'Google AI',
     type: 'video' as const,
-    capabilities: ['text-to-video', 'image-to-video', '4k-output'],
+    capabilities: ['text-to-video', 'image-to-video'],
     avgGenerationTime: 90,
   },
   {
-    id: 'kling',
-    name: 'Kling AI',
-    provider: 'Kuaishou',
+    id: 'sora',
+    name: 'Pro Video',
+    provider: 'OpenAI',
     type: 'video' as const,
-    capabilities: ['text-to-video', 'image-to-video', 'motion-brush'],
-    avgGenerationTime: 90,
-  },
-  // Image to Video Models
-  {
-    id: 'minimax-i2v',
-    name: 'Minimax I2V',
-    provider: 'Minimax',
-    type: 'image-to-video' as const,
-    capabilities: ['image-to-video', 'smooth-motion', 'high-quality'],
-    avgGenerationTime: 60,
-  },
-  {
-    id: 'replicate-wan',
-    name: 'Wan 2.1',
-    provider: 'Replicate',
-    type: 'image-to-video' as const,
-    capabilities: ['image-to-video', 'text-to-video'],
-    avgGenerationTime: 60,
-  },
-  {
-    id: 'runway-gen3',
-    name: 'Runway Gen-3 Alpha',
-    provider: 'Runway',
-    type: 'image-to-video' as const,
-    capabilities: ['image-to-video', 'motion-brush', 'camera-control'],
-    avgGenerationTime: 90,
-  },
-  {
-    id: 'luma-dream-machine',
-    name: 'Luma Dream Machine',
-    provider: 'Luma AI',
-    type: 'image-to-video' as const,
-    capabilities: ['image-to-video', 'camera-motion'],
-    avgGenerationTime: 60,
-  },
-  {
-    id: 'hailuo-i2v',
-    name: 'Hailuo AI',
-    provider: 'Minimax',
-    type: 'image-to-video' as const,
-    capabilities: ['image-to-video', 'cinematic', 'smooth-motion'],
-    avgGenerationTime: 45,
+    capabilities: ['text-to-video'],
+    avgGenerationTime: 180,
   },
 ] as const;
 
 export type AIModel = typeof availableModels[number];
 export type AIModelId = AIModel['id'];
-export type AIModelType = 'image' | 'video' | 'image-to-video';
+export type AIModelType = 'image' | 'video';
 
 // Variation types
 export const variationTypes = [
-  { id: 'background-swap', name: 'Background Swap', description: 'AI replaces/modifies background', applicableTo: ['image', 'video'] },
-  { id: 'style-transfer', name: 'Style Transfer', description: 'Apply artistic styles', applicableTo: ['image', 'video'] },
-  { id: 'color-grading', name: 'Color Grading', description: 'AI-powered color adjustments', applicableTo: ['image', 'video'] },
+  { id: 'background-swap', name: 'Background Swap', description: 'Replace or modify the background', applicableTo: ['image', 'video'] },
+  { id: 'style-transfer', name: 'Style Transfer', description: 'Apply artistic visual styles', applicableTo: ['image', 'video'] },
+  { id: 'color-grading', name: 'Color Grading', description: 'Automatic color adjustments', applicableTo: ['image', 'video'] },
   { id: 'element-animation', name: 'Element Animation', description: 'Animate static elements', applicableTo: ['image'] },
-  { id: 'text-overlay', name: 'Text Overlay Variations', description: 'Generate text placement/style variations', applicableTo: ['image', 'video'] },
-  { id: 'aspect-adapt', name: 'Aspect Ratio Adapt', description: 'Intelligent cropping/extension', applicableTo: ['image', 'video'] },
-  { id: 'scene-extension', name: 'Scene Extension', description: 'Outpaint/extend scene', applicableTo: ['image', 'video'] },
+  { id: 'text-overlay', name: 'Text Overlay Variations', description: 'Generate text placement options', applicableTo: ['image', 'video'] },
+  { id: 'aspect-adapt', name: 'Aspect Ratio Adapt', description: 'Smart cropping and extension', applicableTo: ['image', 'video'] },
+  { id: 'scene-extension', name: 'Scene Extension', description: 'Extend beyond image edges', applicableTo: ['image', 'video'] },
 ] as const;
 
 export type VariationType = typeof variationTypes[number];

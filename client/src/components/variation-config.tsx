@@ -38,7 +38,7 @@ export function VariationConfig({
   };
 
   const filteredTypes = assetType
-    ? variationTypes.filter((t) => t.applicableTo.includes(assetType))
+    ? variationTypes.filter((t) => (t.applicableTo as readonly string[]).includes(assetType))
     : variationTypes;
 
   return (
@@ -125,7 +125,7 @@ export function VariationConfig({
 
       <div className="space-y-3">
         <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Negative Prompt (Optional)
+          Avoid These Elements (Optional)
         </Label>
         <Textarea
           value={negativePrompt}

@@ -88,11 +88,11 @@ export function PromptPreviewModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Preview Generated Prompts
+            Review Your Variations
           </DialogTitle>
           <DialogDescription>
-            Review and edit prompts before generating. Lock prompts you want to keep,
-            then click Regenerate to get new versions of unlocked prompts only.
+            Preview and edit the creative direction for each variation before generating.
+            Lock the ones you want to keep, then click Regenerate to get new versions.
           </DialogDescription>
         </DialogHeader>
 
@@ -101,7 +101,7 @@ export function PromptPreviewModal({
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">
-                Claude is crafting unique prompts for your variations...
+                Preparing your creative variations...
               </p>
             </div>
           ) : (
@@ -157,7 +157,7 @@ export function PromptPreviewModal({
                       className={`min-h-[80px] resize-none font-mono text-sm ${
                         isRegenerating ? 'opacity-50' : ''
                       }`}
-                      placeholder="Enter prompt for this variation..."
+                      placeholder="Enter creative direction for this variation..."
                       disabled={isRegenerating}
                     />
                   </div>

@@ -90,7 +90,7 @@ export default function Studio() {
     "style-transfer",
   ]);
   const [selectedSizes, setSelectedSizes] = useState<SizeConfig[]>(defaultSizes);
-  const [selectedModelId, setSelectedModelId] = useState<AIModelId>("flux-schnell");
+  const [selectedModelId, setSelectedModelId] = useState<AIModelId>("nanobanana");
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
 
@@ -341,7 +341,7 @@ export default function Studio() {
     setVariationCount(3);
     setSelectedVariationTypes(["background-swap", "style-transfer"]);
     setSelectedSizes(defaultSizes);
-    setSelectedModelId("flux-schnell");
+    setSelectedModelId("nanobanana");
     setPrompt("");
     setNegativePrompt("");
     setIntroCard(null);
@@ -398,7 +398,7 @@ export default function Studio() {
     }
 
     // Open preview modal and fetch prompts from Claude
-    previewPromptsMutation.mutate();
+    previewPromptsMutation.mutate(undefined);
   }, [sourceAsset, selectedSizes, previewPromptsMutation, toast]);
 
   // Handle confirming generation after preview
@@ -662,7 +662,7 @@ export default function Studio() {
                     <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">
                       <div className="flex items-center gap-2">
                         <Cpu className="h-4 w-4" />
-                        AI Model
+                        Style
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-4 space-y-4">

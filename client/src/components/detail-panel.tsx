@@ -9,6 +9,14 @@ import { Separator } from "@/components/ui/separator";
 import { Download, Sparkles, X, Image, Film, Clock, Cpu } from "lucide-react";
 import type { Variation } from "@shared/schema";
 
+// Map model IDs to friendly display names
+const modelDisplayNames: Record<string, string> = {
+  'nanobanana': 'Quick Create',
+  'prunaai': 'Pro Create',
+  'veo-3': 'Quick Video',
+  'sora': 'Pro Video',
+};
+
 interface DetailPanelProps {
   variation: Variation | null;
   onClose: () => void;
@@ -90,8 +98,8 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine }: Detail
                 <span>{variation.sizeConfig.placement}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-border">
-                <span className="text-muted-foreground">Model</span>
-                <span>{variation.modelId}</span>
+                <span className="text-muted-foreground">Style</span>
+                <span>{modelDisplayNames[variation.modelId] || variation.modelId}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-border">
                 <span className="text-muted-foreground">Type</span>
@@ -118,7 +126,7 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine }: Detail
               <Separator />
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Prompt Used
+                  Creative Direction Used
                 </Label>
                 <p className="text-sm font-mono bg-muted rounded-md p-3">
                   {variation.prompt}

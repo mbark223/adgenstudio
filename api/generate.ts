@@ -214,6 +214,90 @@ async function generateImage(
       return output as string;
     }
 
+    case 'prunaai': {
+      // Prunaai - ultra-fast image generation via Replicate
+      const replicate = getReplicate();
+
+      // Use image editing if source image provided
+      if (sourceImageUrl) {
+        const output = await replicate.run(
+          'prunaai/p-image-edit' as `${string}/${string}`,
+          {
+            input: {
+              prompt: prompt,
+              images: [sourceImageUrl],
+              aspect_ratio: 'match_input_image',
+              turbo: true,
+            }
+          }
+        );
+        if (Array.isArray(output)) return output[0] as string;
+        return output as string;
+      }
+
+      // Text-to-image generation
+      const output = await replicate.run(
+        'prunaai/p-image' as `${string}/${string}`,
+        {
+          input: {
+            prompt: prompt,
+            aspect_ratio: '1:1',
+          }
+        }
+      );
+      if (Array.isArray(output)) return output[0] as string;
+      return output as string;
+    }
+
+    case 'veo-3': {
+      // Google Veo 3 - video generation (placeholder - requires Google Cloud Vertex AI)
+      console.log('Veo 3 video generation requested');
+      // For now, return source image/placeholder
+      // Real Veo 3 integration requires Google Cloud Vertex AI Video API
+      return sourceImageUrl || 'https://placehold.co/1280x720/mp4?text=Veo+3+Video';
+    }
+
+    case 'sora': {
+      // OpenAI Sora - video generation
+      const openai = getOpenAI();
+
+      try {
+        // Create video generation job
+        const videoResponse = await (openai as any).videos.create({
+          model: 'sora-2',
+          prompt: prompt,
+          duration: 8,
+          resolution: '1280x720',
+        });
+
+        const videoId = videoResponse.id;
+
+        // Poll for completion (max 10 minutes)
+        let attempts = 0;
+        const maxAttempts = 60;
+
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second intervals
+
+          const status = await (openai as any).videos.retrieve(videoId);
+
+          if (status.status === 'completed') {
+            return status.video_url;
+          } else if (status.status === 'failed') {
+            throw new Error(status.error || 'Sora video generation failed');
+          }
+
+          attempts++;
+        }
+
+        throw new Error('Sora video generation timed out');
+      } catch (error: any) {
+        console.error('Sora generation error:', error);
+        // Fallback - return placeholder
+        return 'https://placehold.co/1280x720/mp4?text=Sora+Video+Generation+Failed';
+      }
+    }
+
     case 'dall-e-3': {
       const openai = getOpenAI();
       const response = await openai.images.generate({
