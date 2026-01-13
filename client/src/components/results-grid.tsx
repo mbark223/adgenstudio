@@ -61,7 +61,7 @@ export function ResultsGrid({
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5">
               <Sparkles className="h-8 w-8 text-primary" />
             </div>
-            <h2 className="text-2xl font-semibold">Create AI Ad Variations</h2>
+            <h2 className="text-2xl font-semibold">Create Ad Variations</h2>
             <p className="text-sm text-muted-foreground">
               Generate multiple creative variations of your ad in seconds
             </p>
@@ -94,7 +94,7 @@ export function ResultsGrid({
                   <span className="font-medium">Configure settings</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Choose platforms, sizes, and AI model
+                  Choose platforms, sizes, and style
                 </p>
               </div>
             </div>
@@ -109,7 +109,7 @@ export function ResultsGrid({
                   <span className="font-medium">Generate variations</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Click generate and watch AI create your ad variations
+                  Click generate and watch your ad variations come to life
                 </p>
               </div>
             </div>
