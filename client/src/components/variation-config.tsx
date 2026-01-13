@@ -169,23 +169,10 @@ export function VariationConfig({
         <Textarea
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          placeholder="Describe your creative direction... Use {{variable}} tokens for dynamic content (e.g., 'Feature {{product_name}} with tropical background')"
+          placeholder="Describe your creative direction... (e.g., 'Feature product with tropical background')"
           className="min-h-[100px] resize-none font-mono text-sm"
           data-testid="textarea-prompt"
         />
-        <div className="flex flex-wrap gap-1">
-          <span className="text-xs text-muted-foreground">Tokens:</span>
-          {['{{product_name}}', '{{tagline}}', '{{brand}}', '{{cta}}'].map((token) => (
-            <Badge
-              key={token}
-              variant="outline"
-              className="text-[10px] cursor-pointer hover:bg-primary/10"
-              onClick={() => onPromptChange(prompt + ' ' + token)}
-            >
-              {token}
-            </Badge>
-          ))}
-        </div>
       </div>
 
       <div className="space-y-3">

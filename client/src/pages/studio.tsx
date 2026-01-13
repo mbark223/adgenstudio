@@ -196,11 +196,13 @@ export default function Studio() {
     },
     onSuccess: (data: { prompts: string[]; openModal: boolean }) => {
       setPreviewedPrompts(data.prompts);
-      // Only open modal if explicitly requested (not during live updates)
-      if (data.openModal) {
-        setPromptPreviewOpen(true);
-      }
       setRegeneratingIndices([]);
+
+      // Auto-generate if triggered from Generate button
+      if (autoGenerateAfterPrompts.current) {
+        autoGenerateAfterPrompts.current = false;
+        generateMutation.mutate({ enhancedPrompts: data.prompts });
+      }
     },
     onError: () => {
       setRegeneratingIndices([]);
@@ -385,6 +387,7 @@ export default function Studio() {
 
   // Live prompt generation - regenerate prompts when config changes
   const isFirstRender = useRef(true);
+  const autoGenerateAfterPrompts = useRef(false);
   useEffect(() => {
     // Skip first render
     if (isFirstRender.current) {
@@ -405,7 +408,7 @@ export default function Studio() {
     return () => clearTimeout(timer);
   }, [selectedVariationTypes, selectedBrandProtections, prompt, variationCount]);
 
-  // Handle generation - opens preview modal first
+  // Handle generation - generates directly without preview modal
   const handleGenerate = useCallback(() => {
     if (!sourceAsset) {
       toast({
@@ -425,14 +428,15 @@ export default function Studio() {
       return;
     }
 
-    // If we already have previewed prompts, just open the modal
+    // Generate directly - if we have prompts, use them; otherwise fetch first
     if (previewedPrompts.length > 0) {
-      setPromptPreviewOpen(true);
+      generateMutation.mutate({ enhancedPrompts: previewedPrompts });
     } else {
-      // Otherwise fetch prompts from Claude and open modal
-      previewPromptsMutation.mutate({ openModal: true });
+      // Fetch prompts first, then auto-generate on success
+      autoGenerateAfterPrompts.current = true;
+      previewPromptsMutation.mutate({ openModal: false });
     }
-  }, [sourceAsset, selectedSizes, previewPromptsMutation, previewedPrompts, toast]);
+  }, [sourceAsset, selectedSizes, previewPromptsMutation, previewedPrompts, generateMutation, toast]);
 
   // Handle confirming generation after preview
   const handleConfirmGeneration = useCallback(() => {
