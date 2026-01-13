@@ -184,13 +184,43 @@ function generateFallbackVariations(basePrompt: string, count: number): string[]
   return prompts;
 }
 
+// Convert width/height to common aspect ratio string
+function getAspectRatio(width: number, height: number): string {
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const divisor = gcd(width, height);
+  const w = width / divisor;
+  const h = height / divisor;
+
+  // Map to common aspect ratios supported by models
+  const ratio = width / height;
+  if (Math.abs(ratio - 1) < 0.01) return '1:1';
+  if (Math.abs(ratio - 16/9) < 0.01) return '16:9';
+  if (Math.abs(ratio - 9/16) < 0.01) return '9:16';
+  if (Math.abs(ratio - 4/3) < 0.01) return '4:3';
+  if (Math.abs(ratio - 3/4) < 0.01) return '3:4';
+  if (Math.abs(ratio - 3/2) < 0.01) return '3:2';
+  if (Math.abs(ratio - 2/3) < 0.01) return '2:3';
+  if (Math.abs(ratio - 4/5) < 0.01) return '4:5';
+  if (Math.abs(ratio - 5/4) < 0.01) return '5:4';
+
+  // For non-standard ratios, return closest common ratio
+  if (ratio > 1.5) return '16:9';
+  if (ratio > 1.2) return '4:3';
+  if (ratio > 0.9) return '1:1';
+  if (ratio > 0.7) return '4:5';
+  return '9:16';
+}
+
 // Generate image using the appropriate AI service
 async function generateImage(
   modelId: string,
   prompt: string,
+  width: number,
+  height: number,
   sourceImageUrl?: string,
   negativePrompt?: string
 ): Promise<string> {
+  const aspectRatio = getAspectRatio(width, height);
 
   switch (modelId) {
     case 'nanobanana': {
@@ -198,13 +228,13 @@ async function generateImage(
       const replicate = getReplicate();
       const input: Record<string, any> = {
         prompt: prompt,
-        aspect_ratio: '1:1',
+        aspect_ratio: aspectRatio,
         output_format: 'png',
       };
       // Use image_input array if source image provided
       if (sourceImageUrl) {
         input.image_input = [sourceImageUrl];
-        input.aspect_ratio = 'match_input_image';
+        // Keep the target aspect ratio even with source image
       }
       const output = await replicate.run('google/nano-banana', { input });
       if (Array.isArray(output)) return output[0] as string;
@@ -226,7 +256,7 @@ async function generateImage(
             input: {
               prompt: prompt,
               images: [sourceImageUrl],
-              aspect_ratio: 'match_input_image',
+              aspect_ratio: aspectRatio,
               turbo: true,
             }
           }
@@ -241,7 +271,7 @@ async function generateImage(
         {
           input: {
             prompt: prompt,
-            aspect_ratio: '1:1',
+            aspect_ratio: aspectRatio,
           }
         }
       );
@@ -252,14 +282,16 @@ async function generateImage(
     case 'veo-3': {
       // Google Veo 3 - video generation (placeholder - requires Google Cloud Vertex AI)
       console.log('Veo 3 video generation requested');
-      // For now, return source image/placeholder
+      // For now, return source image/placeholder with correct dimensions
       // Real Veo 3 integration requires Google Cloud Vertex AI Video API
-      return sourceImageUrl || 'https://placehold.co/1280x720/mp4?text=Veo+3+Video';
+      return sourceImageUrl || `https://placehold.co/${width}x${height}/mp4?text=Veo+3+Video`;
     }
 
     case 'sora': {
       // OpenAI Sora - video generation
       const openai = getOpenAI();
+      // Map dimensions to Sora's supported resolutions
+      const soraResolution = width > height ? '1280x720' : height > width ? '720x1280' : '1024x1024';
 
       try {
         // Create video generation job
@@ -267,7 +299,7 @@ async function generateImage(
           model: 'sora-2',
           prompt: prompt,
           duration: 8,
-          resolution: '1280x720',
+          resolution: soraResolution,
         });
 
         const videoId = videoResponse.id;
@@ -339,6 +371,7 @@ async function generateImage(
               prompt_strength: 0.3, // Lower = stays closer to source image
               negative_prompt: negativePrompt || '',
               output_format: 'png',
+              aspect_ratio: aspectRatio,
             }
           }
         );
@@ -352,7 +385,7 @@ async function generateImage(
             prompt: prompt,
             negative_prompt: negativePrompt || '',
             output_format: 'png',
-            aspect_ratio: '1:1',
+            aspect_ratio: aspectRatio,
           }
         }
       );
@@ -370,7 +403,7 @@ async function generateImage(
             input: {
               prompt: prompt,
               image_prompt: sourceImageUrl,
-              aspect_ratio: '1:1',
+              aspect_ratio: aspectRatio,
               output_format: 'png',
               safety_tolerance: 2,
             }
@@ -384,7 +417,7 @@ async function generateImage(
         {
           input: {
             prompt: prompt,
-            aspect_ratio: '1:1',
+            aspect_ratio: aspectRatio,
             output_format: 'png',
             safety_tolerance: 2,
           }
@@ -407,7 +440,7 @@ async function generateImage(
               prompt_strength: 0.35, // Lower = stays closer to source image
               go_fast: true,
               num_outputs: 1,
-              aspect_ratio: '1:1',
+              aspect_ratio: aspectRatio,
               output_format: 'png',
             }
           }
@@ -420,7 +453,7 @@ async function generateImage(
         {
           input: {
             prompt: prompt,
-            aspect_ratio: '1:1',
+            aspect_ratio: aspectRatio,
             output_format: 'png',
           }
         }
@@ -565,9 +598,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.log(`Job ${job.id} (variation ${job.variation_index}): ${variationPrompt.substring(0, 100)}...`);
 
           // Generate the image/video using AI with variation-specific prompt
+          // Use the size config for this job to set correct output dimensions
+          const jobWidth = job.size_config?.width || 1080;
+          const jobHeight = job.size_config?.height || 1080;
           const tempUrl = await generateImage(
             modelId,
             variationPrompt,
+            jobWidth,
+            jobHeight,
             sourceAssetUrl || undefined,
             negativePrompt
           );
