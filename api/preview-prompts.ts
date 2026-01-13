@@ -60,41 +60,49 @@ async function enhancePromptsWithClaude(
     // Process any variable tokens in the user's prompt
     const processedPrompt = processVariableTokens(userPrompt);
 
-    // Build brand protection instructions
+    // Build brand protection instructions for user message
     const brandInstructions = getBrandProtectionInstructions(brandProtections);
 
-    const systemPrompt = `You are a prompt generation machine for A/B ad testing. Your ONLY job is to output numbered variations with prompts and hypotheses.
+    const systemPrompt = `You are a prompt variation generator for ad testing. Your job is to create variations of the user's creative direction.
 
 CRITICAL RULES:
-- Output ONLY in this exact format for each variation:
-  1. PROMPT: [image generation prompt here]
-     HYPOTHESIS: [why this might perform better]
-- NO conversation, NO questions, NO explanations
-- NO "I'd be happy to help" or similar phrases
-- Each PROMPT should be 1-2 sentences describing an image to generate
-- Each HYPOTHESIS should be 1 sentence explaining why this creative direction might improve ad performance (e.g., engagement, clicks, conversions)
-- Make each prompt distinctly different (vary lighting, mood, colors, style, background)
-- Start your response IMMEDIATELY with "1. PROMPT:"
-- If variable tokens like [PRODUCT_NAME] or [TAGLINE] are present, include them in each prompt${brandInstructions}`;
+- The user's BASE DIRECTION is sacred - every prompt MUST include it word-for-word or very close to it
+- You ADD variation elements (lighting, mood, atmosphere) TO their direction - DO NOT replace it
+- DO NOT ignore or significantly change the user's creative direction
+- Output format (no other text):
+  1. PROMPT: [base direction + your lighting/mood variation]
+     HYPOTHESIS: [why this variation might perform better]
+- Start immediately with "1. PROMPT:"
+- NO conversation, NO questions, NO explanations`;
 
     const variationTypesText = variationTypes.length > 0
-      ? `Variation styles to incorporate: ${variationTypes.join(', ')}.`
+      ? `Variation styles requested: ${variationTypes.join(', ')}.`
       : '';
 
-    const userDirection = processedPrompt || 'professional advertisement with creative variations';
+    const userDirection = processedPrompt || 'professional advertisement';
 
-    const userMessage = `Generate exactly ${variationCount} different ad variations for: "${userDirection}"
+    // Build brand protection section for user message
+    const brandSection = brandProtections.length > 0
+      ? `\nBRAND PROTECTION (MUST be mentioned in prompts):
+${brandInstructions.replace('CRITICAL BRAND PROTECTION - You MUST keep these elements unchanged across all variations:', 'Preserve these elements:')}
+`
+      : '';
 
+    const userMessage = `BASE CREATIVE DIRECTION (MUST appear in every prompt):
+"${userDirection}"
+${brandSection}
 ${variationTypesText}
 
-Requirements:
-- Each PROMPT describes a complete image that an AI can generate
-- Each HYPOTHESIS explains why this creative approach might perform better in ads
-- Prompts should vary in: lighting, color palette, mood, background, or artistic style
-- Keep the core subject consistent across all prompts
-- Preserve any [VARIABLE] tokens in your prompts exactly as written
+Create exactly ${variationCount} variations. Each prompt MUST:
+1. START with or CONTAIN the base creative direction above
+2. ADD one of these atmosphere variations: warm golden lighting, cool blue tones, vibrant saturated colors, soft natural light, dramatic contrast, minimalist composition, energetic dynamic feel, calm serene atmosphere
+3. Include a hypothesis for A/B testing
 
-Output ${variationCount} numbered variations now:`;
+Example format if base direction was "red sports car on highway":
+1. PROMPT: Red sports car on highway with warm golden sunset lighting
+   HYPOTHESIS: Warm tones may increase emotional connection
+
+Output ${variationCount} variations now:`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
