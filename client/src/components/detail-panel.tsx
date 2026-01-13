@@ -135,6 +135,23 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine }: Detail
             </>
           )}
 
+          {variation.hypothesis && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Hypothesis
+                </Label>
+                <p className="text-sm bg-primary/5 border border-primary/20 rounded-md p-3">
+                  {variation.hypothesis}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Use this hypothesis to measure performance in your A/B tests
+                </p>
+              </div>
+            </>
+          )}
+
           <Separator />
 
           <div className="space-y-3">

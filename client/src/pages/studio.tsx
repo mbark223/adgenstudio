@@ -107,7 +107,7 @@ export default function Studio() {
 
   // Prompt Preview State
   const [promptPreviewOpen, setPromptPreviewOpen] = useState(false);
-  const [previewedPrompts, setPreviewedPrompts] = useState<string[]>([]);
+  const [previewedVariations, setPreviewedVariations] = useState<{ prompt: string; hypothesis: string }[]>([]);
   const [regeneratingIndices, setRegeneratingIndices] = useState<number[]>([]);
 
   // Fetch variations
@@ -174,34 +174,26 @@ export default function Studio() {
     },
   });
 
-  // Preview prompts mutation - fetches Claude-enhanced prompts without generating
+  // Preview prompts mutation - fetches Claude-enhanced prompts with hypotheses
   const previewPromptsMutation = useMutation({
-    mutationFn: async (params?: { indicesToRegenerate?: number[]; openModal?: boolean }) => {
+    mutationFn: async () => {
       const response = await apiRequest("POST", "/api/preview-prompts", {
         prompt,
         sourceAssetId: sourceAsset?.id,
         variationTypes: selectedVariationTypes,
         brandProtections: selectedBrandProtections,
         variationCount,
-        existingPrompts: params?.indicesToRegenerate ? previewedPrompts : undefined,
-        indicesToRegenerate: params?.indicesToRegenerate,
       });
-      return { ...(await response.json()), openModal: params?.openModal ?? true };
+      return await response.json();
     },
-    onMutate: (params) => {
-      // Track which indices are being regenerated
-      if (params?.indicesToRegenerate) {
-        setRegeneratingIndices(params.indicesToRegenerate);
-      }
-    },
-    onSuccess: (data: { prompts: string[]; openModal: boolean }) => {
-      setPreviewedPrompts(data.prompts);
+    onSuccess: (data: { variations: { prompt: string; hypothesis: string }[] }) => {
+      setPreviewedVariations(data.variations);
       setRegeneratingIndices([]);
 
       // Auto-generate if triggered from Generate button
       if (autoGenerateAfterPrompts.current) {
         autoGenerateAfterPrompts.current = false;
-        generateMutation.mutate({ enhancedPrompts: data.prompts });
+        generateMutation.mutate({ variations: data.variations });
       }
     },
     onError: () => {
@@ -216,7 +208,7 @@ export default function Studio() {
 
   // Generate variations mutation
   const generateMutation = useMutation({
-    mutationFn: async (params?: { enhancedPrompts?: string[] }) => {
+    mutationFn: async (params?: { variations?: { prompt: string; hypothesis: string }[] }) => {
       const response = await apiRequest("POST", "/api/generate", {
         projectId,
         sourceAssetId: sourceAsset?.id,
@@ -226,7 +218,7 @@ export default function Studio() {
         modelId: selectedModelId,
         prompt,
         negativePrompt,
-        enhancedPrompts: params?.enhancedPrompts,
+        variations: params?.variations,
       });
       return response.json();
     },
@@ -402,7 +394,7 @@ export default function Studio() {
 
     // Debounce the prompt generation
     const timer = setTimeout(() => {
-      previewPromptsMutation.mutate({ openModal: false });
+      previewPromptsMutation.mutate();
     }, 800);
 
     return () => clearTimeout(timer);
@@ -428,25 +420,25 @@ export default function Studio() {
       return;
     }
 
-    // Generate directly - if we have prompts, use them; otherwise fetch first
-    if (previewedPrompts.length > 0) {
-      generateMutation.mutate({ enhancedPrompts: previewedPrompts });
+    // Generate directly - if we have variations, use them; otherwise fetch first
+    if (previewedVariations.length > 0) {
+      generateMutation.mutate({ variations: previewedVariations });
     } else {
-      // Fetch prompts first, then auto-generate on success
+      // Fetch variations first, then auto-generate on success
       autoGenerateAfterPrompts.current = true;
-      previewPromptsMutation.mutate({ openModal: false });
+      previewPromptsMutation.mutate();
     }
-  }, [sourceAsset, selectedSizes, previewPromptsMutation, previewedPrompts, generateMutation, toast]);
+  }, [sourceAsset, selectedSizes, previewPromptsMutation, previewedVariations, generateMutation, toast]);
 
   // Handle confirming generation after preview
   const handleConfirmGeneration = useCallback(() => {
     setPromptPreviewOpen(false);
-    generateMutation.mutate({ enhancedPrompts: previewedPrompts });
-  }, [previewedPrompts, generateMutation]);
+    generateMutation.mutate({ variations: previewedVariations });
+  }, [previewedVariations, generateMutation]);
 
-  // Handle regenerating prompts (optionally specific indices only)
-  const handleRegeneratePrompts = useCallback((indicesToRegenerate?: number[]) => {
-    previewPromptsMutation.mutate(indicesToRegenerate ? { indicesToRegenerate } : undefined);
+  // Handle regenerating prompts
+  const handleRegeneratePrompts = useCallback(() => {
+    previewPromptsMutation.mutate();
   }, [previewPromptsMutation]);
 
   // Selection handlers
@@ -677,7 +669,7 @@ export default function Studio() {
                         negativePrompt={negativePrompt}
                         onNegativePromptChange={setNegativePrompt}
                         assetType={sourceAsset?.type || null}
-                        previewedPrompts={previewedPrompts}
+                        previewedPrompts={previewedVariations.map(v => v.prompt)}
                         isLoadingPrompts={previewPromptsMutation.isPending}
                       />
                     </AccordionContent>
@@ -877,12 +869,15 @@ export default function Studio() {
         projectName={projectName}
       />
 
-      {/* Prompt Preview Modal */}
+      {/* Prompt Preview Modal (kept for potential future use) */}
       <PromptPreviewModal
         open={promptPreviewOpen}
         onOpenChange={setPromptPreviewOpen}
-        prompts={previewedPrompts}
-        onPromptsChange={setPreviewedPrompts}
+        prompts={previewedVariations.map(v => v.prompt)}
+        onPromptsChange={(prompts) => setPreviewedVariations(prompts.map((p, i) => ({
+          prompt: p,
+          hypothesis: previewedVariations[i]?.hypothesis || ''
+        })))}
         onRegenerate={handleRegeneratePrompts}
         onConfirm={handleConfirmGeneration}
         isLoading={previewPromptsMutation.isPending}

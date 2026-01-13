@@ -187,6 +187,7 @@ export const variationSchema = z.object({
   sizeConfig: sizeConfigSchema,
   modelId: z.string(),
   prompt: z.string(),
+  hypothesis: z.string().optional(),
   url: z.string(),
   thumbnailUrl: z.string(),
   type: z.enum(['image', 'video']),

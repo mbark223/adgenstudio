@@ -40,14 +40,20 @@ function processVariableTokens(prompt: string): string {
   return prompt.replace(/\{\{(\w+)\}\}/g, (_, varName) => `[${varName.toUpperCase()}]`);
 }
 
-// Use Claude to craft multiple unique prompts for image generation variations
+// Type for variation with prompt and hypothesis
+interface VariationPrompt {
+  prompt: string;
+  hypothesis: string;
+}
+
+// Use Claude to craft multiple unique prompts with hypotheses for image generation variations
 async function enhancePromptsWithClaude(
   userPrompt: string,
   sourceImageUrl: string | null,
   variationTypes: string[],
   brandProtections: string[],
   variationCount: number
-): Promise<string[]> {
+): Promise<VariationPrompt[]> {
   try {
     const anthropic = getAnthropic();
 
@@ -57,15 +63,18 @@ async function enhancePromptsWithClaude(
     // Build brand protection instructions
     const brandInstructions = getBrandProtectionInstructions(brandProtections);
 
-    const systemPrompt = `You are a prompt generation machine. Your ONLY job is to output numbered image generation prompts.
+    const systemPrompt = `You are a prompt generation machine for A/B ad testing. Your ONLY job is to output numbered variations with prompts and hypotheses.
 
 CRITICAL RULES:
-- Output ONLY numbered prompts (1. prompt here, 2. prompt here, etc.)
+- Output ONLY in this exact format for each variation:
+  1. PROMPT: [image generation prompt here]
+     HYPOTHESIS: [why this might perform better]
 - NO conversation, NO questions, NO explanations
 - NO "I'd be happy to help" or similar phrases
-- Each prompt should be 1-2 sentences describing an image to generate
+- Each PROMPT should be 1-2 sentences describing an image to generate
+- Each HYPOTHESIS should be 1 sentence explaining why this creative direction might improve ad performance (e.g., engagement, clicks, conversions)
 - Make each prompt distinctly different (vary lighting, mood, colors, style, background)
-- Start your response IMMEDIATELY with "1." followed by the first prompt
+- Start your response IMMEDIATELY with "1. PROMPT:"
 - If variable tokens like [PRODUCT_NAME] or [TAGLINE] are present, include them in each prompt${brandInstructions}`;
 
     const variationTypesText = variationTypes.length > 0
@@ -74,54 +83,60 @@ CRITICAL RULES:
 
     const userDirection = processedPrompt || 'professional advertisement with creative variations';
 
-    const userMessage = `Generate exactly ${variationCount} different image prompts for: "${userDirection}"
+    const userMessage = `Generate exactly ${variationCount} different ad variations for: "${userDirection}"
 
 ${variationTypesText}
 
 Requirements:
-- Each prompt describes a complete image that an AI can generate
+- Each PROMPT describes a complete image that an AI can generate
+- Each HYPOTHESIS explains why this creative approach might perform better in ads
 - Prompts should vary in: lighting, color palette, mood, background, or artistic style
 - Keep the core subject consistent across all prompts
 - Preserve any [VARIABLE] tokens in your prompts exactly as written
 
-Output ${variationCount} numbered prompts now:`;
+Output ${variationCount} numbered variations now:`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
+      max_tokens: 2000,
       messages: [
         { role: 'user', content: userMessage },
-        { role: 'assistant', content: '1.' }  // Prefill to force prompt format
+        { role: 'assistant', content: '1. PROMPT:' }  // Prefill to force format
       ],
       system: systemPrompt,
     });
 
     const textContent = response.content.find(c => c.type === 'text');
     if (textContent && textContent.type === 'text') {
-      // Prepend "1." since we used it as a prefill
-      const fullResponse = '1.' + textContent.text;
-      console.log('Claude enhanced prompts:', fullResponse);
+      // Prepend "1. PROMPT:" since we used it as a prefill
+      const fullResponse = '1. PROMPT:' + textContent.text;
+      console.log('Claude enhanced prompts with hypotheses:', fullResponse);
 
-      // Parse numbered prompts from response
-      const lines = fullResponse.split('\n').filter(line => line.trim());
-      const prompts: string[] = [];
+      // Parse variations with prompts and hypotheses
+      const variations: VariationPrompt[] = [];
 
-      for (const line of lines) {
-        // Match lines starting with numbers like "1." or "1)" or just numbered
-        const match = line.match(/^\d+[\.\)]\s*(.+)/);
-        if (match) {
-          prompts.push(match[1].trim());
+      // Split by numbered entries (1., 2., 3., etc.)
+      const entries = fullResponse.split(/(?=\d+\.\s*PROMPT:)/i).filter(e => e.trim());
+
+      for (const entry of entries) {
+        const promptMatch = entry.match(/PROMPT:\s*(.+?)(?=\s*HYPOTHESIS:|$)/is);
+        const hypothesisMatch = entry.match(/HYPOTHESIS:\s*(.+?)(?=\s*\d+\.\s*PROMPT:|$)/is);
+
+        if (promptMatch) {
+          variations.push({
+            prompt: promptMatch[1].trim(),
+            hypothesis: hypothesisMatch ? hypothesisMatch[1].trim() : generateFallbackHypothesis(promptMatch[1].trim()),
+          });
         }
       }
 
-      // If we got the right number of prompts, return them
-      if (prompts.length >= variationCount) {
-        return prompts.slice(0, variationCount);
+      // If we got the right number of variations, return them
+      if (variations.length >= variationCount) {
+        return variations.slice(0, variationCount);
       }
 
-      // Fallback: if parsing failed, use the whole response for first variation
-      // and add modifiers for others
-      const basePrompt = prompts[0] || fullResponse.split('\n')[0] || userDirection;
+      // Fallback: if parsing failed, use fallback generation
+      const basePrompt = variations[0]?.prompt || userDirection;
       return generateFallbackVariations(basePrompt, variationCount);
     }
 
@@ -132,27 +147,53 @@ Output ${variationCount} numbered prompts now:`;
   }
 }
 
+// Generate a fallback hypothesis based on the prompt style
+function generateFallbackHypothesis(prompt: string): string {
+  const lowerPrompt = prompt.toLowerCase();
+
+  if (lowerPrompt.includes('warm') || lowerPrompt.includes('golden')) {
+    return 'Warm tones may evoke positive emotions and increase engagement';
+  } else if (lowerPrompt.includes('cool') || lowerPrompt.includes('blue')) {
+    return 'Cool tones may convey professionalism and build trust';
+  } else if (lowerPrompt.includes('vibrant') || lowerPrompt.includes('saturated')) {
+    return 'Vibrant colors may capture attention and increase click-through rates';
+  } else if (lowerPrompt.includes('minimalist') || lowerPrompt.includes('clean')) {
+    return 'Clean design may reduce cognitive load and improve message clarity';
+  } else if (lowerPrompt.includes('dramatic') || lowerPrompt.includes('contrast')) {
+    return 'High contrast may create visual impact and improve ad recall';
+  } else if (lowerPrompt.includes('calm') || lowerPrompt.includes('serene')) {
+    return 'Calm atmosphere may appeal to audiences seeking relaxation or wellness';
+  } else if (lowerPrompt.includes('energetic') || lowerPrompt.includes('dynamic')) {
+    return 'Dynamic visuals may resonate with younger, action-oriented audiences';
+  } else {
+    return 'This creative direction may differentiate from competitor ads and capture attention';
+  }
+}
+
 // Generate fallback variations with style modifiers when Claude fails
-function generateFallbackVariations(basePrompt: string, count: number): string[] {
+function generateFallbackVariations(basePrompt: string, count: number): VariationPrompt[] {
   const modifiers = [
-    'with warm golden hour lighting',
-    'with cool blue tones and modern aesthetic',
-    'with vibrant saturated colors',
-    'with soft natural lighting',
-    'with dramatic contrast and shadows',
-    'with minimalist clean composition',
-    'with energetic dynamic feel',
-    'with calm serene atmosphere',
-    'with bold contemporary style',
-    'with classic timeless look',
+    { style: 'with warm golden hour lighting', hypothesis: 'Warm tones may evoke positive emotions and increase engagement' },
+    { style: 'with cool blue tones and modern aesthetic', hypothesis: 'Cool tones may convey professionalism and build trust' },
+    { style: 'with vibrant saturated colors', hypothesis: 'Vibrant colors may capture attention and increase click-through rates' },
+    { style: 'with soft natural lighting', hypothesis: 'Natural lighting may feel authentic and relatable to viewers' },
+    { style: 'with dramatic contrast and shadows', hypothesis: 'High contrast may create visual impact and improve ad recall' },
+    { style: 'with minimalist clean composition', hypothesis: 'Clean design may reduce cognitive load and improve message clarity' },
+    { style: 'with energetic dynamic feel', hypothesis: 'Dynamic visuals may resonate with younger, action-oriented audiences' },
+    { style: 'with calm serene atmosphere', hypothesis: 'Calm atmosphere may appeal to audiences seeking relaxation or wellness' },
+    { style: 'with bold contemporary style', hypothesis: 'Bold styling may stand out in crowded social feeds' },
+    { style: 'with classic timeless look', hypothesis: 'Classic aesthetics may convey quality and reliability' },
   ];
 
-  const prompts: string[] = [];
+  const variations: VariationPrompt[] = [];
   for (let i = 0; i < count; i++) {
     const modifier = modifiers[i % modifiers.length];
-    prompts.push(`${basePrompt}, ${modifier}`);
+    variations.push({
+      prompt: `${basePrompt}, ${modifier.style}`,
+      hypothesis: modifier.hypothesis,
+    });
   }
-  return prompts;
+  return variations;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -164,7 +205,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'POST') {
-      const { prompt, sourceAssetId, variationTypes, brandProtections, variationCount, existingPrompts, indicesToRegenerate } = req.body;
+      const { prompt, sourceAssetId, variationTypes, brandProtections, variationCount } = req.body;
 
       // Get the source asset URL if provided
       let sourceAssetUrl: string | null = null;
@@ -181,30 +222,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      // If regenerating specific indices, only generate those
-      if (existingPrompts && indicesToRegenerate && indicesToRegenerate.length > 0) {
-        const countToGenerate = indicesToRegenerate.length;
-        const newPrompts = await enhancePromptsWithClaude(
-          prompt || '',
-          sourceAssetUrl,
-          variationTypes || [],
-          brandProtections || [],
-          countToGenerate
-        );
-
-        // Merge new prompts into existing ones at the specified indices
-        const mergedPrompts = [...existingPrompts];
-        indicesToRegenerate.forEach((index: number, i: number) => {
-          if (index < mergedPrompts.length && i < newPrompts.length) {
-            mergedPrompts[index] = newPrompts[i];
-          }
-        });
-
-        return res.status(200).json({ prompts: mergedPrompts });
-      }
-
-      // Generate all prompts using Claude
-      const prompts = await enhancePromptsWithClaude(
+      // Generate all variations with prompts and hypotheses using Claude
+      const variations = await enhancePromptsWithClaude(
         prompt || '',
         sourceAssetUrl,
         variationTypes || [],
@@ -212,7 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         variationCount || 3
       );
 
-      return res.status(200).json({ prompts });
+      return res.status(200).json({ variations });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

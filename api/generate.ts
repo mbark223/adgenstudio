@@ -498,7 +498,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === 'POST') {
       const supabase = getSupabase();
-      const { projectId, sourceAssetId, variationCount, variationTypes, sizes, modelId, prompt, negativePrompt, enhancedPrompts: providedPrompts } = req.body;
+      const { projectId, sourceAssetId, variationCount, variationTypes, sizes, modelId, prompt, negativePrompt, variations: providedVariations } = req.body;
 
       let actualProjectId = projectId;
 
@@ -562,25 +562,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (jobsError) throw jobsError;
 
-      // Use provided prompts if available, otherwise generate with Claude
-      let enhancedPrompts: string[] = [];
-      if (providedPrompts && Array.isArray(providedPrompts) && providedPrompts.length > 0) {
-        // Use pre-approved prompts from preview
-        enhancedPrompts = providedPrompts;
-        console.log(`Using ${enhancedPrompts.length} pre-approved prompts from preview`);
+      // Use provided variations if available, otherwise generate with Claude
+      let variations: { prompt: string; hypothesis: string }[] = [];
+      if (providedVariations && Array.isArray(providedVariations) && providedVariations.length > 0) {
+        // Use pre-generated variations from preview
+        variations = providedVariations;
+        console.log(`Using ${variations.length} pre-generated variations from preview`);
       } else {
-        // Generate prompts with Claude
+        // Generate variations with Claude (fallback if not previewed)
         try {
-          enhancedPrompts = await enhancePromptsWithClaude(
+          const enhancedPrompts = await enhancePromptsWithClaude(
             prompt || '',
             sourceAssetUrl,
             variationTypes || [],
             variationCount
           );
-          console.log(`Generated ${enhancedPrompts.length} unique prompts for ${variationCount} variations`);
+          // Convert string prompts to variations format with default hypothesis
+          variations = enhancedPrompts.map(p => ({
+            prompt: p,
+            hypothesis: 'This creative direction may improve ad performance',
+          }));
+          console.log(`Generated ${variations.length} variations for ${variationCount} variations`);
         } catch (e) {
           console.log('Skipping Claude enhancement, using fallback variations');
-          enhancedPrompts = generateFallbackVariations(prompt || 'A creative advertisement variation', variationCount);
+          const fallbackPrompts = generateFallbackVariations(prompt || 'A creative advertisement variation', variationCount);
+          variations = fallbackPrompts.map(p => ({
+            prompt: p,
+            hypothesis: 'This creative direction may improve ad performance',
+          }));
         }
       }
 
@@ -593,8 +602,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .update({ status: 'processing', progress: 50 })
             .eq('id', job.id);
 
-          // Get the unique prompt for this variation index
-          const variationPrompt = enhancedPrompts[job.variation_index] || enhancedPrompts[0] || prompt;
+          // Get the unique variation for this variation index
+          const variation = variations[job.variation_index] || variations[0] || { prompt: prompt || '', hypothesis: '' };
+          const variationPrompt = variation.prompt;
+          const variationHypothesis = variation.hypothesis;
           console.log(`Job ${job.id} (variation ${job.variation_index}): ${variationPrompt.substring(0, 100)}...`);
 
           // Generate the image/video using AI with variation-specific prompt
@@ -636,7 +647,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             variation_index: job.variation_index,
             size_config: job.size_config,
             model_id: job.model_id,
-            prompt: job.prompt,
+            prompt: variationPrompt,
+            hypothesis: variationHypothesis,
             url: generatedUrl,
             thumbnail_url: generatedUrl,
             type: 'image',
