@@ -66,11 +66,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Process each target size in parallel
       const results = await Promise.allSettled(
         targetSizes.map(async (size) => {
-          // Resize with sharp - use cover to fill the target dimensions
+          // Resize with sharp - use contain to preserve entire image with padding
           const resizedBuffer = await sharp(imageBuffer)
             .resize(size.width, size.height, {
-              fit: 'cover',
-              position: 'center',
+              fit: 'contain',
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
             })
             .png()
             .toBuffer();
