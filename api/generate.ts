@@ -624,12 +624,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Upload to permanent storage (Replicate URLs expire)
           const generatedUrl = await uploadToStorage(tempUrl, job.id);
 
-          // Update job as completed
+          // Update job as completed with prompt and hypothesis
           await supabase
             .from('generation_jobs')
             .update({
               status: 'completed',
               progress: 100,
+              prompt: variationPrompt,
+              hypothesis: variationHypothesis,
               result: {
                 url: generatedUrl,
                 thumbnailUrl: generatedUrl,

@@ -161,6 +161,7 @@ export const generationJobSchema = z.object({
   sizeConfig: sizeConfigSchema,
   modelId: z.string(),
   prompt: z.string(),
+  hypothesis: z.string().optional(),
   negativePrompt: z.string().optional(),
   variationTypes: z.array(z.string()),
   status: z.enum(['queued', 'processing', 'completed', 'failed']),

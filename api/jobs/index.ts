@@ -37,6 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sizeConfig: j.size_config,
         modelId: j.model_id,
         prompt: j.prompt,
+        hypothesis: j.hypothesis,
         negativePrompt: j.negative_prompt,
         variationTypes: j.variation_types,
         status: j.status,
