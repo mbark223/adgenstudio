@@ -816,6 +816,7 @@ export default function Studio() {
           <div className="flex-1 overflow-hidden">
             <ResultsGrid
               variations={variations}
+              jobs={jobs}
               selectedIds={selectedVariationIds}
               onSelectVariation={handleSelectVariation}
               onSelectAll={handleSelectAll}
@@ -837,6 +838,11 @@ export default function Studio() {
                 setSelectedVariationIds(new Set());
               }}
               onStatusChange={handleStatusChange}
+              onDownloadJob={(job) => {
+                if (job.result?.url) {
+                  window.open(job.result.url, '_blank');
+                }
+              }}
             />
           </div>
 

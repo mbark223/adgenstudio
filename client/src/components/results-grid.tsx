@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { VariationCard } from "./variation-card";
-import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight } from "lucide-react";
-import type { Variation, SizeConfig, VariationStatus } from "@shared/schema";
+import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight, Trophy, Swords, Expand } from "lucide-react";
+import type { Variation, SizeConfig, VariationStatus, GenerationJob } from "@shared/schema";
 
 interface ResultsGridProps {
   variations: Variation[];
+  jobs?: GenerationJob[];
   selectedIds: Set<string>;
   onSelectVariation: (id: string, selected: boolean) => void;
   onSelectAll: () => void;
@@ -18,10 +20,13 @@ interface ResultsGridProps {
   onBulkDownload: () => void;
   onBulkDelete: () => void;
   onStatusChange?: (variationId: string, status: VariationStatus | undefined) => void;
+  onViewJob?: (job: GenerationJob) => void;
+  onDownloadJob?: (job: GenerationJob) => void;
 }
 
 export function ResultsGrid({
   variations,
+  jobs = [],
   selectedIds,
   onSelectVariation,
   onSelectAll,
@@ -32,9 +37,14 @@ export function ResultsGrid({
   onBulkDownload,
   onBulkDelete,
   onStatusChange,
+  onViewJob,
+  onDownloadJob,
 }: ResultsGridProps) {
   const [sizeFilter, setSizeFilter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Get completed jobs for display when variations aren't loaded
+  const completedJobs = jobs.filter(j => j.status === 'completed' && j.result?.url);
 
   const uniqueSizes = Array.from(
     new Map(
@@ -51,8 +61,79 @@ export function ResultsGrid({
       )
     : variations;
 
-  const allSelected = filteredVariations.length > 0 && 
+  const allSelected = filteredVariations.length > 0 &&
     filteredVariations.every((v) => selectedIds.has(v.id));
+
+  // Show completed jobs grid if we have completed jobs but no variations yet
+  if (variations.length === 0 && completedJobs.length > 0) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Generated Results</span>
+            <Badge variant="secondary" className="font-mono text-xs">
+              {completedJobs.length} complete
+            </Badge>
+          </div>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
+            {completedJobs.map((job) => (
+              <div
+                key={job.id}
+                className="group relative rounded-lg border border-border overflow-hidden hover:border-muted-foreground/50 transition-all"
+              >
+                <div className="aspect-square relative bg-muted">
+                  <img
+                    src={job.result?.thumbnailUrl || job.result?.url}
+                    alt={`Variation ${job.variationIndex + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-transparent to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-end justify-between">
+                      <div className="text-white">
+                        <p className="text-sm font-medium">Variation {job.variationIndex + 1}</p>
+                        <p className="text-xs opacity-80 font-mono">{job.sizeConfig.width}x{job.sizeConfig.height}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        {onDownloadJob && (
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8 bg-white/20 backdrop-blur-sm hover:bg-white/30 border-0"
+                            onClick={() => onDownloadJob(job)}
+                          >
+                            <Download className="h-4 w-4 text-white" />
+                          </Button>
+                        )}
+                        {onViewJob && (
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8 bg-white/20 backdrop-blur-sm hover:bg-white/30 border-0"
+                            onClick={() => onViewJob(job)}
+                          >
+                            <Expand className="h-4 w-4 text-white" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-3">
+                  <p className="text-sm font-medium">V{job.variationIndex + 1}</p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {job.sizeConfig.platform || 'Generated'} • {job.sizeConfig.placement || job.sizeConfig.name}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
 
   if (variations.length === 0) {
     return (
