@@ -137,7 +137,7 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
             {jobs.map((job) => {
               const variation = getVariationForJob(job);
               const isJobExpanded = expandedJobId === job.id;
-              const canExpand = job.status === 'completed' && variation;
+              const canExpand = job.status === 'completed';
 
               return (
                 <div key={job.id} data-testid={`queue-job-${job.id}`}>
@@ -236,83 +236,89 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
                   </div>
 
                   {/* Expanded Content */}
-                  {isJobExpanded && variation && (
+                  {isJobExpanded && (
                     <div className="px-4 py-3 bg-muted/30 border-t border-border space-y-3">
-                      {/* Hypothesis */}
-                      {variation.hypothesis && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                            <span>Hypothesis</span>
-                          </div>
-                          <p className="text-sm italic border-l-2 border-primary/30 pl-2 text-muted-foreground">
-                            {variation.hypothesis}
-                          </p>
-                        </div>
-                      )}
+                      {variation ? (
+                        <>
+                          {/* Hypothesis */}
+                          {variation.hypothesis && (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                <span>Hypothesis</span>
+                              </div>
+                              <p className="text-sm italic border-l-2 border-primary/30 pl-2 text-muted-foreground">
+                                {variation.hypothesis}
+                              </p>
+                            </div>
+                          )}
 
-                      {/* Status Actions */}
-                      {onStatusChange && (
-                        <div className="space-y-1">
-                          <div className="text-xs font-medium text-muted-foreground">Mark As</div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant={variation.status === 'winner' ? "default" : "outline"}
-                              className={`h-7 text-xs ${variation.status === 'winner' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onStatusChange(variation.id, variation.status === 'winner' ? undefined : 'winner');
-                              }}
-                            >
-                              <Trophy className="h-3 w-3 mr-1" />
-                              Winner
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={variation.status === 'challenger' ? "secondary" : "outline"}
-                              className="h-7 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onStatusChange(variation.id, variation.status === 'challenger' ? undefined : 'challenger');
-                              }}
-                            >
-                              <Swords className="h-3 w-3 mr-1" />
-                              Challenger
-                            </Button>
-                          </div>
-                        </div>
-                      )}
+                          {/* Status Actions */}
+                          {onStatusChange && (
+                            <div className="space-y-1">
+                              <div className="text-xs font-medium text-muted-foreground">Mark As</div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant={variation.status === 'winner' ? "default" : "outline"}
+                                  className={`h-7 text-xs ${variation.status === 'winner' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onStatusChange(variation.id, variation.status === 'winner' ? undefined : 'winner');
+                                  }}
+                                >
+                                  <Trophy className="h-3 w-3 mr-1" />
+                                  Winner
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={variation.status === 'challenger' ? "secondary" : "outline"}
+                                  className="h-7 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onStatusChange(variation.id, variation.status === 'challenger' ? undefined : 'challenger');
+                                  }}
+                                >
+                                  <Swords className="h-3 w-3 mr-1" />
+                                  Challenger
+                                </Button>
+                              </div>
+                            </div>
+                          )}
 
-                      {/* Feedback */}
-                      {onFeedbackChange && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                            <MessageSquare className="h-3 w-3" />
-                            <span>Feedback</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <Textarea
-                              value={feedbackInputs[variation.id] ?? variation.feedback ?? ''}
-                              onChange={(e) => setFeedbackInputs(prev => ({ ...prev, [variation.id]: e.target.value }))}
-                              placeholder="Add notes about this variation..."
-                              className="min-h-[60px] text-xs resize-none"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const feedback = feedbackInputs[variation.id] ?? variation.feedback ?? '';
-                              onFeedbackChange(variation.id, feedback);
-                            }}
-                            disabled={(feedbackInputs[variation.id] ?? variation.feedback ?? '') === (variation.feedback ?? '')}
-                          >
-                            Save Feedback
-                          </Button>
-                        </div>
+                          {/* Feedback */}
+                          {onFeedbackChange && (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                <MessageSquare className="h-3 w-3" />
+                                <span>Feedback</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Textarea
+                                  value={feedbackInputs[variation.id] ?? variation.feedback ?? ''}
+                                  onChange={(e) => setFeedbackInputs(prev => ({ ...prev, [variation.id]: e.target.value }))}
+                                  placeholder="Add notes about this variation..."
+                                  className="min-h-[60px] text-xs resize-none"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs w-full"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const feedback = feedbackInputs[variation.id] ?? variation.feedback ?? '';
+                                  onFeedbackChange(variation.id, feedback);
+                                }}
+                                disabled={(feedbackInputs[variation.id] ?? variation.feedback ?? '') === (variation.feedback ?? '')}
+                              >
+                                Save Feedback
+                              </Button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Loading variation details...</p>
                       )}
                     </div>
                   )}
