@@ -38,7 +38,17 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
 
   // Helper to get variation for a job
   const getVariationForJob = (job: GenerationJob): Variation | undefined => {
-    return variations.find(v => v.jobId === job.id);
+    // Try exact job ID match first
+    const byJobId = variations.find(v => v.jobId === job.id);
+    if (byJobId) return byJobId;
+
+    // Fallback: match by variation index and size config
+    // This handles timing issues where variations haven't synced with jobId yet
+    return variations.find(v =>
+      v.variationIndex === job.variationIndex &&
+      v.sizeConfig.width === job.sizeConfig.width &&
+      v.sizeConfig.height === job.sizeConfig.height
+    );
   };
   
   if (jobs.length === 0) {
