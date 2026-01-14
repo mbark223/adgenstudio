@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import sharp from 'sharp';
+import Replicate from 'replicate';
 
-// Vercel function config - extend timeout for batch resizing
+// Vercel function config - extend timeout for AI outpainting
 export const config = {
-  maxDuration: 60,
+  maxDuration: 300, // 5 minutes for AI generation
 };
 
 function getSupabase() {
@@ -12,6 +12,77 @@ function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) throw new Error('Missing Supabase env vars');
   return createClient(url, key);
+}
+
+function getReplicate() {
+  if (!process.env.REPLICATE_API_TOKEN) throw new Error('Missing REPLICATE_API_TOKEN');
+  return new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+}
+
+// Convert width/height to aspect ratio string
+function getAspectRatio(width: number, height: number): string {
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const divisor = gcd(width, height);
+  const w = width / divisor;
+  const h = height / divisor;
+
+  // Map to common aspect ratios
+  const ratio = width / height;
+  if (Math.abs(ratio - 1) < 0.01) return '1:1';
+  if (Math.abs(ratio - 16/9) < 0.01) return '16:9';
+  if (Math.abs(ratio - 9/16) < 0.01) return '9:16';
+  if (Math.abs(ratio - 4/3) < 0.01) return '4:3';
+  if (Math.abs(ratio - 3/4) < 0.01) return '3:4';
+  if (Math.abs(ratio - 4/5) < 0.01) return '4:5';
+  if (Math.abs(ratio - 5/4) < 0.01) return '5:4';
+
+  // For non-standard ratios, return closest common ratio
+  if (ratio > 1.5) return '16:9';
+  if (ratio > 1.2) return '4:3';
+  if (ratio > 0.9) return '1:1';
+  if (ratio > 0.7) return '4:5';
+  return '9:16';
+}
+
+// Download image from URL and upload to Supabase Storage
+async function uploadToStorage(imageUrl: string, jobId: string, size: { width: number; height: number }): Promise<string> {
+  const supabase = getSupabase();
+
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      console.error('Failed to fetch image:', response.status, response.statusText);
+      return imageUrl;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const ext = contentType.includes('webp') ? 'webp' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png';
+
+    const filePath = `generated/resize-${jobId}-${size.width}x${size.height}-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from('assets')
+      .upload(filePath, buffer, {
+        contentType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      return imageUrl;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('assets')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  } catch (err) {
+    console.error('Error uploading to storage:', err);
+    return imageUrl;
+  }
 }
 
 interface SizeConfig {
@@ -32,6 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === 'POST') {
       const supabase = getSupabase();
+      const replicate = getReplicate();
       const { sourceJobId, targetSizes } = req.body as {
         sourceJobId: string;
         targetSizes: SizeConfig[];
@@ -56,42 +128,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Source job has no result image' });
       }
 
-      // Fetch the source image
-      const imageResponse = await fetch(sourceJob.result.url);
-      if (!imageResponse.ok) {
-        return res.status(500).json({ error: 'Failed to fetch source image' });
-      }
-      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      const sourceImageUrl = sourceJob.result.url;
 
-      // Process each target size in parallel
+      // Process each target size in parallel using AI outpainting
       const results = await Promise.allSettled(
         targetSizes.map(async (size) => {
-          // Resize with sharp - use contain to preserve entire image with padding
-          const resizedBuffer = await sharp(imageBuffer)
-            .resize(size.width, size.height, {
-              fit: 'contain',
-              background: { r: 255, g: 255, b: 255, alpha: 1 },
-            })
-            .png()
-            .toBuffer();
+          const aspectRatio = getAspectRatio(size.width, size.height);
 
-          // Upload to Supabase storage
-          const filePath = `generated/resize-${sourceJobId}-${size.width}x${size.height}-${Date.now()}.png`;
-          const { error: uploadError } = await supabase.storage
-            .from('assets')
-            .upload(filePath, resizedBuffer, {
-              contentType: 'image/png',
-              upsert: true,
-            });
+          console.log(`Outpainting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          if (uploadError) {
-            throw new Error(`Upload failed: ${uploadError.message}`);
+          // Use Nano Banana for outpainting - it handles aspect ratio changes well
+          const output = await replicate.run('google/nano-banana', {
+            input: {
+              prompt: 'extend the background naturally, maintain the exact same style and colors, seamless extension',
+              image_input: [sourceImageUrl],
+              aspect_ratio: aspectRatio,
+              output_format: 'png',
+            }
+          });
+
+          // Get the generated URL
+          let generatedUrl: string;
+          if (Array.isArray(output)) {
+            generatedUrl = output[0] as string;
+          } else if (typeof output === 'object' && output !== null && 'output' in output) {
+            generatedUrl = (output as any).output as string;
+          } else {
+            generatedUrl = output as string;
           }
 
-          // Get public URL
-          const { data: { publicUrl } } = supabase.storage
-            .from('assets')
-            .getPublicUrl(filePath);
+          // Upload to permanent storage
+          const permanentUrl = await uploadToStorage(generatedUrl, sourceJobId, size);
 
           // Create new job record as already completed
           const { data: newJob, error: insertError } = await supabase
@@ -109,10 +176,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               status: 'completed',
               progress: 100,
               result: {
-                url: publicUrl,
-                thumbnailUrl: publicUrl,
+                url: permanentUrl,
+                thumbnailUrl: permanentUrl,
                 metadata: {
-                  resizedFrom: sourceJobId,
+                  outpaintedFrom: sourceJobId,
                   generatedAt: new Date().toISOString(),
                 },
               },
@@ -135,6 +202,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .map((r) => r.value);
 
       const failedCount = results.filter((r) => r.status === 'rejected').length;
+
+      // Log any failures
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`Failed to outpaint size ${i}:`, r.reason);
+        }
+      });
 
       return res.status(201).json({
         jobs: successfulJobs,
