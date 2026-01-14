@@ -318,6 +318,31 @@ export default function Studio() {
     },
   });
 
+  // Resize job mutation (create other sizes)
+  const resizeJobMutation = useMutation({
+    mutationFn: async ({ sourceJobId, targetSizes }: { sourceJobId: string; targetSizes: SizeConfig[] }) => {
+      const response = await apiRequest("POST", "/api/resize", {
+        sourceJobId,
+        targetSizes,
+      });
+      return response.json();
+    },
+    onSuccess: (data: { created: number; failed: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs", projectId] });
+      toast({
+        title: "Sizes created",
+        description: `Created ${data.created} resized variation${data.created !== 1 ? 's' : ''}.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Resize failed",
+        description: "There was an error creating resized versions.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Save project mutation
   const saveProjectMutation = useMutation({
     mutationFn: async () => {
@@ -515,6 +540,10 @@ export default function Studio() {
   const handleJobStatusChange = useCallback((jobId: string, testStatus: string | undefined) => {
     updateJobMutation.mutate({ id: jobId, testStatus });
   }, [updateJobMutation]);
+
+  const handleResizeJob = useCallback((sourceJobId: string, targetSizes: SizeConfig[]) => {
+    resizeJobMutation.mutate({ sourceJobId, targetSizes });
+  }, [resizeJobMutation]);
 
   // Job handlers
   const handleCancelJob = useCallback((jobId: string) => {
@@ -868,6 +897,7 @@ export default function Studio() {
                 }
               }}
               onJobStatusChange={handleJobStatusChange}
+              onResizeJob={handleResizeJob}
             />
           </div>
 

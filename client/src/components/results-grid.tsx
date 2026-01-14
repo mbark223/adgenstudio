@@ -4,9 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { VariationCard } from "./variation-card";
-import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight, Trophy, Swords, Expand, X, Image, Film } from "lucide-react";
+import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight, Trophy, Swords, Expand, X, Image, Film, Layers } from "lucide-react";
 import type { Variation, SizeConfig, VariationStatus, GenerationJob } from "@shared/schema";
+import { platformPresets } from "@shared/schema";
 
 interface ResultsGridProps {
   variations: Variation[];
@@ -24,6 +33,7 @@ interface ResultsGridProps {
   onViewJob?: (job: GenerationJob) => void;
   onDownloadJob?: (job: GenerationJob) => void;
   onJobStatusChange?: (jobId: string, testStatus: string | undefined) => void;
+  onResizeJob?: (sourceJobId: string, targetSizes: SizeConfig[]) => void;
 }
 
 export function ResultsGrid({
@@ -42,10 +52,13 @@ export function ResultsGrid({
   onViewJob,
   onDownloadJob,
   onJobStatusChange,
+  onResizeJob,
 }: ResultsGridProps) {
   const [sizeFilter, setSizeFilter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedJob, setSelectedJob] = useState<GenerationJob | null>(null);
+  const [resizeModalOpen, setResizeModalOpen] = useState(false);
+  const [selectedSizesForResize, setSelectedSizesForResize] = useState<SizeConfig[]>([]);
 
   // Get completed jobs for display when variations aren't loaded
   const completedJobs = jobs.filter(j => j.status === 'completed' && j.result?.url);
@@ -294,11 +307,120 @@ export function ResultsGrid({
                       Download Image
                     </Button>
                   </div>
+
+                  {/* Create Other Sizes */}
+                  {onResizeJob && (
+                    <>
+                      <Separator />
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Create Other Sizes
+                        </p>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setSelectedSizesForResize([]);
+                            setResizeModalOpen(true);
+                          }}
+                        >
+                          <Layers className="h-4 w-4 mr-2" />
+                          Create Other Sizes
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Resize this image for other platforms without regenerating
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </ScrollArea>
             </div>
           </div>
         )}
+
+        {/* Resize Modal */}
+        <Dialog open={resizeModalOpen} onOpenChange={setResizeModalOpen}>
+          <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Create Other Sizes</DialogTitle>
+              <DialogDescription>
+                Select platform sizes to create resized versions of this image.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="flex-1 -mx-6 px-6">
+              <div className="space-y-4 py-4">
+                {Object.entries(platformPresets).map(([platformKey, platform]) => {
+                  const currentSize = selectedJob?.sizeConfig;
+                  const availableSizes = platform.sizes.filter(
+                    (s) => !(s.width === currentSize?.width && s.height === currentSize?.height)
+                  );
+
+                  if (availableSizes.length === 0) return null;
+
+                  return (
+                    <div key={platformKey} className="space-y-2">
+                      <p className="text-sm font-medium">{platform.displayName}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {availableSizes.map((size) => {
+                          const sizeConfig: SizeConfig = {
+                            ...size,
+                            platform: platformKey,
+                          };
+                          const isSelected = selectedSizesForResize.some(
+                            (s) => s.width === size.width && s.height === size.height && s.platform === platformKey
+                          );
+                          return (
+                            <button
+                              key={`${platformKey}-${size.name}`}
+                              className={`text-left p-2 rounded-md border text-sm transition-colors ${
+                                isSelected
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border hover:border-muted-foreground/50"
+                              }`}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedSizesForResize((prev) =>
+                                    prev.filter(
+                                      (s) => !(s.width === size.width && s.height === size.height && s.platform === platformKey)
+                                    )
+                                  );
+                                } else {
+                                  setSelectedSizesForResize((prev) => [...prev, sizeConfig]);
+                                }
+                              }}
+                            >
+                              <p className="font-medium">{size.name}</p>
+                              <p className="text-xs text-muted-foreground font-mono">
+                                {size.width}x{size.height}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setResizeModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={selectedSizesForResize.length === 0}
+                onClick={() => {
+                  if (selectedJob && onResizeJob) {
+                    onResizeJob(selectedJob.id, selectedSizesForResize);
+                    setResizeModalOpen(false);
+                  }
+                }}
+              >
+                Create {selectedSizesForResize.length} Size{selectedSizesForResize.length !== 1 ? 's' : ''}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
