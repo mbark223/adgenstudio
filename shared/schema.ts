@@ -177,6 +177,10 @@ export const generationJobSchema = z.object({
 
 export type GenerationJob = z.infer<typeof generationJobSchema>;
 
+// Variation status for A/B testing
+export const variationStatusOptions = ['pending', 'winner', 'challenger', 'rejected'] as const;
+export type VariationStatus = typeof variationStatusOptions[number];
+
 // Variation result schema
 export const variationSchema = z.object({
   id: z.string(),
@@ -188,6 +192,8 @@ export const variationSchema = z.object({
   modelId: z.string(),
   prompt: z.string(),
   hypothesis: z.string().optional(),
+  feedback: z.string().optional(),
+  status: z.enum(variationStatusOptions).optional(),
   url: z.string(),
   thumbnailUrl: z.string(),
   type: z.enum(['image', 'video']),

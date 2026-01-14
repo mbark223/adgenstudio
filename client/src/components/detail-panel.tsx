@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Download, Sparkles, X, Image, Film, Clock, Cpu } from "lucide-react";
-import type { Variation } from "@shared/schema";
+import { Download, Sparkles, X, Image, Film, Clock, Cpu, MessageSquare, Trophy, Swords } from "lucide-react";
+import type { Variation, VariationStatus } from "@shared/schema";
 
 // Map model IDs to friendly display names
 const modelDisplayNames: Record<string, string> = {
@@ -22,9 +23,17 @@ interface DetailPanelProps {
   onClose: () => void;
   onDownload: (format: string) => void;
   onRefine: (prompt: string) => void;
+  onFeedbackChange?: (feedback: string) => void;
+  onStatusChange?: (status: VariationStatus | undefined) => void;
 }
 
-export function DetailPanel({ variation, onClose, onDownload, onRefine }: DetailPanelProps) {
+export function DetailPanel({ variation, onClose, onDownload, onRefine, onFeedbackChange, onStatusChange }: DetailPanelProps) {
+  const [feedback, setFeedback] = useState(variation?.feedback || '');
+
+  // Update feedback when variation changes
+  useEffect(() => {
+    setFeedback(variation?.feedback || '');
+  }, [variation?.id, variation?.feedback]);
   if (!variation) {
     return (
       <div className="flex h-full flex-col items-center justify-center p-6 text-center">
@@ -148,6 +157,69 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine }: Detail
                 <p className="text-xs text-muted-foreground">
                   Use this hypothesis to measure performance in your A/B tests
                 </p>
+              </div>
+            </>
+          )}
+
+          {/* Status Actions */}
+          {onStatusChange && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  A/B Test Status
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={variation.status === 'winner' ? "default" : "outline"}
+                    className={`flex-1 ${variation.status === 'winner' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                    onClick={() => onStatusChange(variation.status === 'winner' ? undefined : 'winner')}
+                  >
+                    <Trophy className="h-4 w-4 mr-2" />
+                    Winner
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={variation.status === 'challenger' ? "secondary" : "outline"}
+                    className="flex-1"
+                    onClick={() => onStatusChange(variation.status === 'challenger' ? undefined : 'challenger')}
+                  >
+                    <Swords className="h-4 w-4 mr-2" />
+                    Challenger
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* User Feedback */}
+          {onFeedbackChange && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Your Feedback
+                  </Label>
+                </div>
+                <Textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="Add notes about this variation... (e.g., 'Colors match brand better', 'Use for Q2 campaign')"
+                  className="min-h-[80px] resize-none text-sm"
+                  data-testid="textarea-feedback"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => onFeedbackChange(feedback)}
+                  disabled={feedback === (variation.feedback || '')}
+                >
+                  Save Feedback
+                </Button>
               </div>
             </>
           )}

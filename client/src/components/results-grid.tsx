@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { VariationCard } from "./variation-card";
 import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight } from "lucide-react";
-import type { Variation, SizeConfig } from "@shared/schema";
+import type { Variation, SizeConfig, VariationStatus } from "@shared/schema";
 
 interface ResultsGridProps {
   variations: Variation[];
@@ -17,6 +17,7 @@ interface ResultsGridProps {
   onDeleteVariation: (variation: Variation) => void;
   onBulkDownload: () => void;
   onBulkDelete: () => void;
+  onStatusChange?: (variationId: string, status: VariationStatus | undefined) => void;
 }
 
 export function ResultsGrid({
@@ -30,6 +31,7 @@ export function ResultsGrid({
   onDeleteVariation,
   onBulkDownload,
   onBulkDelete,
+  onStatusChange,
 }: ResultsGridProps) {
   const [sizeFilter, setSizeFilter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -249,6 +251,7 @@ export function ResultsGrid({
               onView={() => onViewVariation(variation)}
               onDownload={() => onDownloadVariation(variation)}
               onDelete={() => onDeleteVariation(variation)}
+              onStatusChange={onStatusChange ? (status) => onStatusChange(variation.id, status) : undefined}
             />
           ))}
         </div>

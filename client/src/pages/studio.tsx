@@ -277,6 +277,27 @@ export default function Studio() {
     setTimeout(() => clearInterval(pollInterval), 300000);
   }, [toast]);
 
+  // Update variation mutation (for feedback and status)
+  const updateVariationMutation = useMutation({
+    mutationFn: async ({ id, feedback, status }: { id: string; feedback?: string; status?: string }) => {
+      const response = await apiRequest("PATCH", `/api/variations/${id}`, {
+        feedback,
+        status,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/variations", projectId] });
+    },
+    onError: () => {
+      toast({
+        title: "Update failed",
+        description: "There was an error updating the variation.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Save project mutation
   const saveProjectMutation = useMutation({
     mutationFn: async () => {
@@ -461,6 +482,15 @@ export default function Studio() {
   const handleDeselectAll = useCallback(() => {
     setSelectedVariationIds(new Set());
   }, []);
+
+  // Variation update handlers
+  const handleStatusChange = useCallback((variationId: string, status: string | undefined) => {
+    updateVariationMutation.mutate({ id: variationId, status });
+  }, [updateVariationMutation]);
+
+  const handleFeedbackChange = useCallback((variationId: string, feedback: string) => {
+    updateVariationMutation.mutate({ id: variationId, feedback });
+  }, [updateVariationMutation]);
 
   // Job handlers
   const handleCancelJob = useCallback((jobId: string) => {
@@ -806,6 +836,7 @@ export default function Studio() {
                 toast({ title: `${selectedVariationIds.size} variations deleted` });
                 setSelectedVariationIds(new Set());
               }}
+              onStatusChange={handleStatusChange}
             />
           </div>
 
@@ -839,6 +870,16 @@ export default function Studio() {
               }}
               onRefine={(prompt) => {
                 toast({ title: "Generating refined version..." });
+              }}
+              onFeedbackChange={(feedback) => {
+                if (viewingVariation) {
+                  handleFeedbackChange(viewingVariation.id, feedback);
+                }
+              }}
+              onStatusChange={(status) => {
+                if (viewingVariation) {
+                  handleStatusChange(viewingVariation.id, status);
+                }
               }}
             />
           )}

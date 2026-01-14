@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Expand, Trash2, Play, Image, Film } from "lucide-react";
-import type { Variation } from "@shared/schema";
+import { Download, Expand, Trash2, Play, Image, Film, Trophy, Swords } from "lucide-react";
+import type { Variation, VariationStatus } from "@shared/schema";
 
 interface VariationCardProps {
   variation: Variation;
@@ -12,6 +12,7 @@ interface VariationCardProps {
   onView: () => void;
   onDownload: () => void;
   onDelete: () => void;
+  onStatusChange?: (status: VariationStatus | undefined) => void;
 }
 
 export function VariationCard({
@@ -21,6 +22,7 @@ export function VariationCard({
   onView,
   onDownload,
   onDelete,
+  onStatusChange,
 }: VariationCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -132,15 +134,66 @@ export function VariationCard({
         </div>
       </div>
 
-      <div className="p-3">
+      <div className="p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-sm font-medium">V{variation.variationIndex + 1}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">V{variation.variationIndex + 1}</p>
+              {variation.status === 'winner' && (
+                <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-1.5 py-0">
+                  <Trophy className="h-3 w-3 mr-0.5" />
+                  Winner
+                </Badge>
+              )}
+              {variation.status === 'challenger' && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  <Swords className="h-3 w-3 mr-0.5" />
+                  Challenger
+                </Badge>
+              )}
+            </div>
             <p className="font-mono text-xs text-muted-foreground">
               {variation.sizeConfig.platform} • {variation.sizeConfig.placement}
             </p>
           </div>
         </div>
+
+        {/* Hypothesis */}
+        {variation.hypothesis && (
+          <p className="text-xs text-muted-foreground line-clamp-2 italic border-l-2 border-primary/30 pl-2">
+            {variation.hypothesis}
+          </p>
+        )}
+
+        {/* Status Actions */}
+        {onStatusChange && (
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant={variation.status === 'winner' ? "default" : "outline"}
+              className={`h-7 text-xs flex-1 ${variation.status === 'winner' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusChange(variation.status === 'winner' ? undefined : 'winner');
+              }}
+            >
+              <Trophy className="h-3 w-3 mr-1" />
+              Winner
+            </Button>
+            <Button
+              size="sm"
+              variant={variation.status === 'challenger' ? "secondary" : "outline"}
+              className="h-7 text-xs flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusChange(variation.status === 'challenger' ? undefined : 'challenger');
+              }}
+            >
+              <Swords className="h-3 w-3 mr-1" />
+              Challenger
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ function getSupabase() {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -21,6 +21,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    if (req.method === 'PATCH') {
+      const { feedback, status } = req.body;
+      const supabase = getSupabase();
+
+      const updateData: Record<string, any> = {};
+      if (feedback !== undefined) updateData.feedback = feedback;
+      if (status !== undefined) updateData.status = status;
+
+      const { data, error } = await supabase
+        .from('variations')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return res.status(200).json(data);
+    }
+
     if (req.method === 'DELETE') {
       const supabase = getSupabase();
       const { error } = await supabase.from('variations').delete().eq('id', id);
