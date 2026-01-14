@@ -632,7 +632,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const generatedUrl = await uploadToStorage(tempUrl, job.id);
 
           // Update job as completed with prompt and hypothesis
-          await supabase
+          const { error: updateError } = await supabase
             .from('generation_jobs')
             .update({
               status: 'completed',
@@ -648,8 +648,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             })
             .eq('id', job.id);
 
+          if (updateError) {
+            console.error(`Failed to update job ${job.id}:`, updateError);
+            throw updateError;
+          }
+          console.log(`Job ${job.id} completed successfully with URL: ${generatedUrl}`);
+
           // Create variation record
-          await supabase.from('variations').insert({
+          const { error: variationError } = await supabase.from('variations').insert({
             project_id: actualProjectId,
             job_id: job.id,
             source_asset_id: job.source_asset_id,
@@ -663,6 +669,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             type: 'image',
             selected: false,
           });
+
+          if (variationError) {
+            console.error(`Failed to create variation for job ${job.id}:`, variationError);
+          }
 
         } catch (genError: any) {
           console.error(`Generation error for job ${job.id}:`, genError);
