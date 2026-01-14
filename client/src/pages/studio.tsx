@@ -843,9 +843,12 @@ export default function Studio() {
           {/* Generation Queue */}
           <GenerationQueue
             jobs={jobs}
+            variations={variations}
             onCancelJob={handleCancelJob}
             onRetryJob={handleRetryJob}
             onCancelAll={handleCancelAllJobs}
+            onStatusChange={handleStatusChange}
+            onFeedbackChange={handleFeedbackChange}
           />
         </main>
 
