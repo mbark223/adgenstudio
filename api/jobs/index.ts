@@ -41,6 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         negativePrompt: j.negative_prompt,
         variationTypes: j.variation_types,
         status: j.status,
+        testStatus: j.test_status,
         progress: j.progress,
         result: j.result,
         error: j.error,

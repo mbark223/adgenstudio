@@ -298,6 +298,26 @@ export default function Studio() {
     },
   });
 
+  // Update job status mutation (for A/B test status)
+  const updateJobMutation = useMutation({
+    mutationFn: async ({ id, testStatus }: { id: string; testStatus?: string }) => {
+      const response = await apiRequest("PATCH", `/api/jobs/${id}`, {
+        testStatus,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs", projectId] });
+    },
+    onError: () => {
+      toast({
+        title: "Update failed",
+        description: "There was an error updating the job status.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Save project mutation
   const saveProjectMutation = useMutation({
     mutationFn: async () => {
@@ -491,6 +511,10 @@ export default function Studio() {
   const handleFeedbackChange = useCallback((variationId: string, feedback: string) => {
     updateVariationMutation.mutate({ id: variationId, feedback });
   }, [updateVariationMutation]);
+
+  const handleJobStatusChange = useCallback((jobId: string, testStatus: string | undefined) => {
+    updateJobMutation.mutate({ id: jobId, testStatus });
+  }, [updateJobMutation]);
 
   // Job handlers
   const handleCancelJob = useCallback((jobId: string) => {
@@ -843,6 +867,7 @@ export default function Studio() {
                   window.open(job.result.url, '_blank');
                 }
               }}
+              onJobStatusChange={handleJobStatusChange}
             />
           </div>
 

@@ -165,6 +165,7 @@ export const generationJobSchema = z.object({
   negativePrompt: z.string().optional(),
   variationTypes: z.array(z.string()),
   status: z.enum(['queued', 'processing', 'completed', 'failed']),
+  testStatus: z.enum(['pending', 'winner', 'challenger', 'rejected']).optional(),
   progress: z.number(),
   result: z.object({
     url: z.string(),

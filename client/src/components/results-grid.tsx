@@ -23,6 +23,7 @@ interface ResultsGridProps {
   onStatusChange?: (variationId: string, status: VariationStatus | undefined) => void;
   onViewJob?: (job: GenerationJob) => void;
   onDownloadJob?: (job: GenerationJob) => void;
+  onJobStatusChange?: (jobId: string, testStatus: string | undefined) => void;
 }
 
 export function ResultsGrid({
@@ -40,6 +41,7 @@ export function ResultsGrid({
   onStatusChange,
   onViewJob,
   onDownloadJob,
+  onJobStatusChange,
 }: ResultsGridProps) {
   const [sizeFilter, setSizeFilter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -216,6 +218,44 @@ export function ResultsGrid({
                         <p className="text-xs text-muted-foreground">
                           Use this hypothesis to measure performance in your A/B tests
                         </p>
+                      </div>
+                    </>
+                  )}
+
+                  {/* A/B Test Status */}
+                  {onJobStatusChange && (
+                    <>
+                      <Separator />
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          A/B Test Status
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant={selectedJob.testStatus === 'winner' ? "default" : "outline"}
+                            className={`flex-1 ${selectedJob.testStatus === 'winner' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                            onClick={() => {
+                              onJobStatusChange(selectedJob.id, selectedJob.testStatus === 'winner' ? undefined : 'winner');
+                              setSelectedJob({ ...selectedJob, testStatus: selectedJob.testStatus === 'winner' ? undefined : 'winner' });
+                            }}
+                          >
+                            <Trophy className="h-4 w-4 mr-2" />
+                            Winner
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedJob.testStatus === 'challenger' ? "secondary" : "outline"}
+                            className="flex-1"
+                            onClick={() => {
+                              onJobStatusChange(selectedJob.id, selectedJob.testStatus === 'challenger' ? undefined : 'challenger');
+                              setSelectedJob({ ...selectedJob, testStatus: selectedJob.testStatus === 'challenger' ? undefined : 'challenger' });
+                            }}
+                          >
+                            <Swords className="h-4 w-4 mr-2" />
+                            Challenger
+                          </Button>
+                        </div>
                       </div>
                     </>
                   )}

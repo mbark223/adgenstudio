@@ -5,6 +5,12 @@ import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Anthropic from '@anthropic-ai/sdk';
 
+// Vercel function config - extend timeout for image generation
+// Requires Pro plan for maxDuration > 10s
+export const config = {
+  maxDuration: 300, // 5 minutes max (Pro plan required)
+};
+
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
@@ -593,8 +599,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      // Process each job with AI generation
-      for (const job of jobsData) {
+      // Process all jobs in parallel for faster generation
+      // Using Promise.allSettled so one failure doesn't block others
+      await Promise.allSettled(jobsData.map(async (job) => {
         try {
           // Update status to processing
           await supabase
@@ -669,7 +676,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             })
             .eq('id', job.id);
         }
-      }
+      }));
 
       // Fetch updated jobs
       const { data: updatedJobs } = await supabase
