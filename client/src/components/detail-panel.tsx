@@ -109,6 +109,7 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine, onFeedba
               </Badge>
             )}
           </div>
+        </div>
 
           <div className="space-y-1">
             <h4 className="text-lg font-semibold">
