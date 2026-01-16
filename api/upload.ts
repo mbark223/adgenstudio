@@ -130,8 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from('assets')
         .getPublicUrl(filePath);
 
-      // Determine asset type
-      const isVideo = mimeType.startsWith('video/');
+      // Determine asset type (isVideo already defined above)
       const assetType = isVideo ? 'video' : 'image';
 
       // Save asset record to database
@@ -144,8 +143,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           type: assetType,
           mime_type: mimeType,
           size: file.length,
-          width: isVideo ? null : 1920,  // Videos need metadata extraction
-          height: isVideo ? null : 1080,  // Videos need metadata extraction
+          width: 1920,  // Placeholder - would need metadata extraction for actual values
+          height: 1080,  // Placeholder - would need metadata extraction for actual values
           url: publicUrl,
           thumbnail_url: publicUrl,
         })
