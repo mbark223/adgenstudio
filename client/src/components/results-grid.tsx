@@ -80,9 +80,42 @@ export function ResultsGrid({
   const [selectedJob, setSelectedJob] = useState<GenerationJob | null>(null);
   const [resizeModalOpen, setResizeModalOpen] = useState(false);
   const [selectedSizesForResize, setSelectedSizesForResize] = useState<SizeConfig[]>([]);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
 
   // Get completed jobs for display when variations aren't loaded
   const completedJobs = jobs.filter(j => j.status === 'completed' && j.result?.url);
+
+  const allJobsSelected = completedJobs.length > 0 && completedJobs.every((j) => selectedJobIds.has(j.id));
+
+  const handleJobSelect = (jobId: string, selected: boolean) => {
+    const newSelectedIds = new Set(selectedJobIds);
+    if (selected) {
+      newSelectedIds.add(jobId);
+    } else {
+      newSelectedIds.delete(jobId);
+    }
+    setSelectedJobIds(newSelectedIds);
+  };
+
+  const handleSelectAllJobs = () => {
+    if (allJobsSelected) {
+      setSelectedJobIds(new Set());
+    } else {
+      setSelectedJobIds(new Set(completedJobs.map(j => j.id)));
+    }
+  };
+
+  const handleBulkDownloadJobs = async () => {
+    const jobsToDownload = completedJobs.filter(j => selectedJobIds.has(j.id));
+    for (const job of jobsToDownload) {
+      if (job.result?.url) {
+        const filename = `${job.sizeConfig.platform}_${job.sizeConfig.width}x${job.sizeConfig.height}_v${job.variationIndex + 1}.${job.result.url.split('.').pop() || 'png'}`;
+        await downloadFile(job.result.url, filename);
+        // Small delay between downloads to avoid overwhelming the browser
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+  };
 
   const uniqueSizes = Array.from(
     new Map(
@@ -110,30 +143,77 @@ export function ResultsGrid({
         <div className="flex flex-1 flex-col">
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-4 py-3">
             <div className="flex items-center gap-2">
+              <Checkbox
+                checked={allJobsSelected}
+                onCheckedChange={handleSelectAllJobs}
+                className="h-4 w-4"
+              />
               <span className="text-sm font-medium">Generated Results</span>
               <Badge variant="secondary" className="font-mono text-xs">
                 {completedJobs.length} complete
               </Badge>
+              {selectedJobIds.size > 0 && (
+                <Badge variant="default" className="font-mono text-xs">
+                  {selectedJobIds.size} selected
+                </Badge>
+              )}
             </div>
+
+            {selectedJobIds.size > 0 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkDownloadJobs}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download {selectedJobIds.size} {selectedJobIds.size === 1 ? 'File' : 'Files'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedJobIds(new Set())}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            )}
           </div>
 
           <ScrollArea className="flex-1">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
-              {completedJobs.map((job) => (
+              {completedJobs.map((job) => {
+                const isJobSelected = selectedJobIds.has(job.id);
+                return (
                 <div
                   key={job.id}
-                  className={`group relative rounded-lg border overflow-hidden cursor-pointer transition-all ${
-                    selectedJob?.id === job.id
+                  className={`group relative rounded-lg border overflow-hidden transition-all ${
+                    isJobSelected
+                      ? "border-primary ring-2 ring-primary/20"
+                      : selectedJob?.id === job.id
                       ? "border-primary ring-2 ring-primary/20"
                       : "border-border hover:border-muted-foreground/50"
                   }`}
-                  onClick={() => setSelectedJob(selectedJob?.id === job.id ? null : job)}
                 >
+                  {/* Checkbox overlay */}
+                  <div className="absolute top-2 left-2 z-20">
+                    <div className="rounded bg-background/80 backdrop-blur-sm p-1 shadow-sm">
+                      <Checkbox
+                        checked={isJobSelected}
+                        onCheckedChange={(checked) => handleJobSelect(job.id, checked as boolean)}
+                        className="h-4 w-4"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+
                   <div
-                    className="relative bg-muted w-full"
+                    className="relative bg-muted w-full cursor-pointer"
                     style={{
                       aspectRatio: `${job.sizeConfig.width} / ${job.sizeConfig.height}`
                     }}
+                    onClick={() => setSelectedJob(selectedJob?.id === job.id ? null : job)}
                   >
                     <img
                       src={job.result?.thumbnailUrl || job.result?.url}
@@ -171,7 +251,8 @@ export function ResultsGrid({
                     </p>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </ScrollArea>
         </div>
