@@ -129,11 +129,16 @@ export function ResultsGrid({
                   }`}
                   onClick={() => setSelectedJob(selectedJob?.id === job.id ? null : job)}
                 >
-                  <div className="aspect-square relative bg-muted">
+                  <div
+                    className="relative bg-muted w-full"
+                    style={{
+                      aspectRatio: `${job.sizeConfig.width} / ${job.sizeConfig.height}`
+                    }}
+                  >
                     <img
                       src={job.result?.thumbnailUrl || job.result?.url}
                       alt={`Variation ${job.variationIndex + 1}`}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                     <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-transparent to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="flex items-end justify-between">
@@ -190,12 +195,25 @@ export function ResultsGrid({
               <ScrollArea className="flex-1">
                 <div className="space-y-6 p-4">
                   {/* Image Preview */}
-                  <div className="aspect-video relative rounded-lg overflow-hidden bg-muted">
+                  <div
+                    className="relative rounded-lg overflow-hidden bg-muted w-full cursor-pointer group"
+                    style={{
+                      aspectRatio: `${selectedJob.sizeConfig.width} / ${selectedJob.sizeConfig.height}`
+                    }}
+                    onClick={() => onViewJob?.(selectedJob)}
+                  >
                     <img
                       src={selectedJob.result?.url}
                       alt={`Variation ${selectedJob.variationIndex + 1}`}
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-105"
                     />
+                    {/* Enlarge hint overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-all duration-200">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
+                        <Expand className="h-4 w-4" />
+                        <span className="text-sm font-medium">Click to enlarge</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Title */}

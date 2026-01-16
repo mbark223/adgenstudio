@@ -50,10 +50,11 @@ export function VariationCard({
       </div>
 
       <div
-        className="relative bg-muted w-full"
+        className="relative bg-muted w-full cursor-pointer group"
         style={{
           aspectRatio: `${variation.sizeConfig.width} / ${variation.sizeConfig.height}`
         }}
+        onClick={onView}
       >
         {!imageLoaded && (
           <div className="absolute inset-0 animate-pulse bg-muted" />
@@ -61,14 +62,22 @@ export function VariationCard({
         <img
           src={variation.thumbnailUrl || variation.url}
           alt={`Variation ${variation.variationIndex + 1}`}
-          className={`h-full w-full object-contain transition-opacity ${
+          className={`h-full w-full object-contain transition-all duration-200 ${
             imageLoaded ? "opacity-100" : "opacity-0"
-          }`}
+          } group-hover:scale-105`}
           onLoad={() => setImageLoaded(true)}
         />
+
+        {/* Enlarge hint overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-all duration-200">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
+            <Expand className="h-4 w-4" />
+            <span className="text-sm font-medium">Click to enlarge</span>
+          </div>
+        </div>
         
         {variation.type === 'video' && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
               <Play className="h-5 w-5 text-white" fill="white" />
             </div>
@@ -76,9 +85,10 @@ export function VariationCard({
         )}
 
         <div
-          className={`absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/60 via-transparent to-transparent p-3 transition-opacity ${
+          className={`absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/60 via-transparent to-transparent p-3 transition-opacity z-10 ${
             isHovered ? "opacity-100" : "opacity-0"
           }`}
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-end">
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-background/80 backdrop-blur-sm">
