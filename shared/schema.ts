@@ -1,57 +1,227 @@
 import { z } from "zod";
 
+// Safe zone definition (margins in pixels where important content should be placed)
+export interface SafeZone {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 // Platform presets for ad sizes
 export const platformPresets = {
   meta: {
     displayName: 'Meta (Facebook/Instagram)',
     sizes: [
-      { name: 'Feed Square', width: 1080, height: 1080, placement: 'Feed' },
-      { name: 'Feed Portrait', width: 1080, height: 1350, placement: 'Feed' },
-      { name: 'Story/Reel', width: 1080, height: 1920, placement: 'Stories/Reels' },
-      { name: 'Feed Landscape', width: 1200, height: 628, placement: 'Feed' },
-      { name: 'Carousel', width: 1080, height: 1080, placement: 'Feed' },
+      {
+        name: 'Feed Square',
+        width: 1080,
+        height: 1080,
+        placement: 'Feed',
+        safeZone: { top: 54, right: 54, bottom: 54, left: 54 } // 5% margins
+      },
+      {
+        name: 'Feed Portrait',
+        width: 1080,
+        height: 1350,
+        placement: 'Feed',
+        safeZone: { top: 68, right: 54, bottom: 68, left: 54 } // 5% margins
+      },
+      {
+        name: 'Story/Reel',
+        width: 1080,
+        height: 1920,
+        placement: 'Stories/Reels',
+        safeZone: { top: 250, right: 54, bottom: 300, left: 54 } // Instagram UI elements
+      },
+      {
+        name: 'Feed Landscape',
+        width: 1200,
+        height: 628,
+        placement: 'Feed',
+        safeZone: { top: 31, right: 60, bottom: 31, left: 60 } // 5% margins
+      },
+      {
+        name: 'Carousel',
+        width: 1080,
+        height: 1080,
+        placement: 'Feed',
+        safeZone: { top: 54, right: 54, bottom: 54, left: 54 } // 5% margins
+      },
     ],
   },
   tiktok: {
     displayName: 'TikTok',
     sizes: [
-      { name: 'In-Feed Video', width: 1080, height: 1920, placement: 'For You Feed' },
-      { name: 'TopView', width: 1080, height: 1920, placement: 'TopView' },
-      { name: 'Spark Ad', width: 1080, height: 1920, placement: 'Organic Style' },
-      { name: 'Square Option', width: 1080, height: 1080, placement: 'Feed' },
+      {
+        name: 'In-Feed Video',
+        width: 1080,
+        height: 1920,
+        placement: 'For You Feed',
+        safeZone: { top: 100, right: 54, bottom: 400, left: 54 } // TikTok UI (profile, description, buttons)
+      },
+      {
+        name: 'TopView',
+        width: 1080,
+        height: 1920,
+        placement: 'TopView',
+        safeZone: { top: 150, right: 54, bottom: 350, left: 54 } // TopView UI elements
+      },
+      {
+        name: 'Spark Ad',
+        width: 1080,
+        height: 1920,
+        placement: 'Organic Style',
+        safeZone: { top: 100, right: 54, bottom: 400, left: 54 } // Similar to In-Feed
+      },
+      {
+        name: 'Square Option',
+        width: 1080,
+        height: 1080,
+        placement: 'Feed',
+        safeZone: { top: 54, right: 54, bottom: 54, left: 54 } // 5% margins
+      },
     ],
   },
   snapchat: {
     displayName: 'Snapchat',
     sizes: [
-      { name: 'Snap Ad', width: 1080, height: 1920, placement: 'Between Stories' },
-      { name: 'Story Ad', width: 1080, height: 1920, placement: 'Discover' },
-      { name: 'Collection Ad Tile', width: 360, height: 600, placement: 'Collection' },
-      { name: 'Collection Ad Hero', width: 1080, height: 1920, placement: 'Collection' },
-      { name: 'Commercial', width: 1080, height: 1920, placement: 'Shows' },
+      {
+        name: 'Snap Ad',
+        width: 1080,
+        height: 1920,
+        placement: 'Between Stories',
+        safeZone: { top: 192, right: 54, bottom: 288, left: 54 } // Snapchat UI (10-15% top/bottom)
+      },
+      {
+        name: 'Story Ad',
+        width: 1080,
+        height: 1920,
+        placement: 'Discover',
+        safeZone: { top: 192, right: 54, bottom: 288, left: 54 } // Similar to Snap Ad
+      },
+      {
+        name: 'Collection Ad Tile',
+        width: 360,
+        height: 600,
+        placement: 'Collection',
+        safeZone: { top: 30, right: 18, bottom: 30, left: 18 } // 5% margins
+      },
+      {
+        name: 'Collection Ad Hero',
+        width: 1080,
+        height: 1920,
+        placement: 'Collection',
+        safeZone: { top: 192, right: 54, bottom: 288, left: 54 } // Story-style safe zones
+      },
+      {
+        name: 'Commercial',
+        width: 1080,
+        height: 1920,
+        placement: 'Shows',
+        safeZone: { top: 150, right: 54, bottom: 200, left: 54 } // Commercial format
+      },
     ],
   },
   moloco: {
     displayName: 'Moloco',
     sizes: [
-      { name: 'Interstitial Portrait', width: 1080, height: 1920, placement: 'Interstitial' },
-      { name: 'Interstitial Landscape', width: 1920, height: 1080, placement: 'Interstitial' },
-      { name: 'Banner Large', width: 320, height: 480, placement: 'Banner' },
-      { name: 'Banner Medium', width: 300, height: 250, placement: 'MREC' },
-      { name: 'Banner Small', width: 320, height: 50, placement: 'Banner' },
-      { name: 'Native Square', width: 1200, height: 1200, placement: 'Native' },
-      { name: 'Native Landscape', width: 1200, height: 628, placement: 'Native' },
+      {
+        name: 'Interstitial Portrait',
+        width: 1080,
+        height: 1920,
+        placement: 'Interstitial',
+        safeZone: { top: 108, right: 54, bottom: 192, left: 54 } // Close button, CTA area
+      },
+      {
+        name: 'Interstitial Landscape',
+        width: 1920,
+        height: 1080,
+        placement: 'Interstitial',
+        safeZone: { top: 108, right: 96, bottom: 108, left: 96 } // Close button area
+      },
+      {
+        name: 'Banner Large',
+        width: 320,
+        height: 480,
+        placement: 'Banner',
+        safeZone: { top: 16, right: 16, bottom: 24, left: 16 } // Small ad unit
+      },
+      {
+        name: 'Banner Medium',
+        width: 300,
+        height: 250,
+        placement: 'MREC',
+        safeZone: { top: 15, right: 15, bottom: 15, left: 15 } // 5% margins
+      },
+      {
+        name: 'Banner Small',
+        width: 320,
+        height: 50,
+        placement: 'Banner',
+        safeZone: { top: 3, right: 16, bottom: 3, left: 16 } // Minimal vertical space
+      },
+      {
+        name: 'Native Square',
+        width: 1200,
+        height: 1200,
+        placement: 'Native',
+        safeZone: { top: 60, right: 60, bottom: 60, left: 60 } // 5% margins
+      },
+      {
+        name: 'Native Landscape',
+        width: 1200,
+        height: 628,
+        placement: 'Native',
+        safeZone: { top: 31, right: 60, bottom: 31, left: 60 } // 5% margins
+      },
     ],
   },
   googleUAC: {
     displayName: 'Google UAC (App Campaigns)',
     sizes: [
-      { name: 'Landscape Video', width: 1920, height: 1080, placement: 'YouTube/Display' },
-      { name: 'Portrait Video', width: 1080, height: 1920, placement: 'YouTube Shorts/Display' },
-      { name: 'Square Video', width: 1080, height: 1080, placement: 'Display/Discovery' },
-      { name: 'Landscape Image', width: 1200, height: 628, placement: 'Display' },
-      { name: 'Square Image', width: 1200, height: 1200, placement: 'Display' },
-      { name: 'Portrait Image', width: 1080, height: 1920, placement: 'Display' },
+      {
+        name: 'Landscape Video',
+        width: 1920,
+        height: 1080,
+        placement: 'YouTube/Display',
+        safeZone: { top: 108, right: 192, bottom: 108, left: 192 } // YouTube player controls
+      },
+      {
+        name: 'Portrait Video',
+        width: 1080,
+        height: 1920,
+        placement: 'YouTube Shorts/Display',
+        safeZone: { top: 192, right: 54, bottom: 300, left: 54 } // Shorts UI
+      },
+      {
+        name: 'Square Video',
+        width: 1080,
+        height: 1080,
+        placement: 'Display/Discovery',
+        safeZone: { top: 108, right: 108, bottom: 108, left: 108 } // 10% margins
+      },
+      {
+        name: 'Landscape Image',
+        width: 1200,
+        height: 628,
+        placement: 'Display',
+        safeZone: { top: 63, right: 120, bottom: 63, left: 120 } // 10% margins
+      },
+      {
+        name: 'Square Image',
+        width: 1200,
+        height: 1200,
+        placement: 'Display',
+        safeZone: { top: 120, right: 120, bottom: 120, left: 120 } // 10% margins
+      },
+      {
+        name: 'Portrait Image',
+        width: 1080,
+        height: 1920,
+        placement: 'Display',
+        safeZone: { top: 192, right: 108, bottom: 192, left: 108 } // 10% margins
+      },
     ],
   },
 } as const;
@@ -125,6 +295,14 @@ export const brandProtectionOptions = [
 export type BrandProtection = typeof brandProtectionOptions[number];
 export type BrandProtectionId = BrandProtection['id'];
 
+// Safe zone schema
+export const safeZoneSchema = z.object({
+  top: z.number(),
+  right: z.number(),
+  bottom: z.number(),
+  left: z.number(),
+});
+
 // Size configuration
 export const sizeConfigSchema = z.object({
   name: z.string(),
@@ -132,6 +310,7 @@ export const sizeConfigSchema = z.object({
   height: z.number(),
   placement: z.string(),
   platform: z.string(),
+  safeZone: safeZoneSchema.optional(),
 });
 
 export type SizeConfig = z.infer<typeof sizeConfigSchema>;

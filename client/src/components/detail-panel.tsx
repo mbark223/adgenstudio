@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Download, Sparkles, X, Image, Film, Clock, Cpu, MessageSquare, Trophy, Swords } from "lucide-react";
+import { Download, Sparkles, X, Image, Film, Clock, Cpu, MessageSquare, Trophy, Swords, Grid3X3 } from "lucide-react";
 import type { Variation, VariationStatus } from "@shared/schema";
+import { SafeZoneOverlay } from "./safe-zone-overlay";
 
 // Map model IDs to friendly display names
 const modelDisplayNames: Record<string, string> = {
@@ -29,6 +30,7 @@ interface DetailPanelProps {
 
 export function DetailPanel({ variation, onClose, onDownload, onRefine, onFeedbackChange, onStatusChange }: DetailPanelProps) {
   const [feedback, setFeedback] = useState(variation?.feedback || '');
+  const [showSafeZones, setShowSafeZones] = useState(false);
 
   // Update feedback when variation changes
   useEffect(() => {
@@ -64,14 +66,44 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine, onFeedba
 
       <ScrollArea className="flex-1">
         <div className="space-y-6 p-4">
-          <div className="aspect-video relative rounded-lg overflow-hidden bg-muted">
-            <img
-              src={variation.url}
-              alt={`Variation ${variation.variationIndex + 1}`}
-              className="h-full w-full object-contain"
-            />
-            {variation.type === 'video' && (
-              <Badge className="absolute top-2 right-2 gap-1">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Preview
+              </Label>
+              {variation.sizeConfig.safeZone && (
+                <Button
+                  variant={showSafeZones ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowSafeZones(!showSafeZones)}
+                  className="h-7 text-xs gap-1"
+                >
+                  <Grid3X3 className="h-3 w-3" />
+                  Safe Zones
+                </Button>
+              )}
+            </div>
+            <div
+              className="relative rounded-lg overflow-hidden bg-muted w-full"
+              style={{
+                aspectRatio: `${variation.sizeConfig.width} / ${variation.sizeConfig.height}`
+              }}
+            >
+              <img
+                src={variation.url}
+                alt={`Variation ${variation.variationIndex + 1}`}
+                className="h-full w-full object-contain"
+              />
+              {variation.sizeConfig.safeZone && (
+                <SafeZoneOverlay
+                  safeZone={variation.sizeConfig.safeZone}
+                  width={variation.sizeConfig.width}
+                  height={variation.sizeConfig.height}
+                  visible={showSafeZones}
+                />
+              )}
+              {variation.type === 'video' && (
+                <Badge className="absolute top-2 right-2 gap-1">
                 <Film className="h-3 w-3" />
                 Video
               </Badge>

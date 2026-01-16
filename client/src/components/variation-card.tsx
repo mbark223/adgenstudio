@@ -49,14 +49,19 @@ export function VariationCard({
         </div>
       </div>
 
-      <div className="aspect-square relative bg-muted">
+      <div
+        className="relative bg-muted w-full"
+        style={{
+          aspectRatio: `${variation.sizeConfig.width} / ${variation.sizeConfig.height}`
+        }}
+      >
         {!imageLoaded && (
           <div className="absolute inset-0 animate-pulse bg-muted" />
         )}
         <img
           src={variation.thumbnailUrl || variation.url}
           alt={`Variation ${variation.variationIndex + 1}`}
-          className={`h-full w-full object-cover transition-opacity ${
+          className={`h-full w-full object-contain transition-opacity ${
             imageLoaded ? "opacity-100" : "opacity-0"
           }`}
           onLoad={() => setImageLoaded(true)}

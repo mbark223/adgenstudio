@@ -17,6 +17,27 @@ import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings,
 import type { Variation, SizeConfig, VariationStatus, GenerationJob } from "@shared/schema";
 import { platformPresets } from "@shared/schema";
 
+// Download a single file
+async function downloadFile(url: string, filename: string): Promise<void> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error(`Failed to download ${filename}:`, error);
+    // Fallback: open in new tab
+    window.open(url, '_blank');
+  }
+}
+
 interface ResultsGridProps {
   variations: Variation[];
   jobs?: GenerationJob[];
@@ -297,9 +318,11 @@ export function ResultsGrid({
                     </p>
                     <Button
                       className="w-full"
-                      onClick={() => {
+                      onClick={async () => {
                         if (selectedJob.result?.url) {
-                          window.open(selectedJob.result.url, '_blank');
+                          const metadata = selectedJob.result.metadata;
+                          const filename = `adgen_${metadata?.width}x${metadata?.height}_${Date.now()}.${selectedJob.result.url.split('.').pop() || 'png'}`;
+                          await downloadFile(selectedJob.result.url, filename);
                         }
                       }}
                     >

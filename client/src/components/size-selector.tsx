@@ -36,7 +36,7 @@ function AspectRatioPreview({ width, height }: { width: number; height: number }
   );
 }
 
-export function SizeSelector({ selectedSizes, onSizesChange, maxSelections = 6 }: SizeSelectorProps) {
+export function SizeSelector({ selectedSizes, onSizesChange, maxSelections = 20 }: SizeSelectorProps) {
   const [showAllSizes, setShowAllSizes] = useState(false);
 
   const isSizeSelected = (platform: string, name: string) => {

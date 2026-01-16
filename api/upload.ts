@@ -82,6 +82,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Parse multipart form data
       const { file, filename, mimeType } = await parseMultipartForm(req);
 
+      // Validate MIME type
+      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+      const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+
+      if (!allowedTypes.includes(mimeType)) {
+        return res.status(400).json({
+          error: 'Invalid file type',
+          message: `Only JPG, PNG, WebP images and MP4, MOV, WebM videos are allowed. Received: ${mimeType}`
+        });
+      }
+
+      // Validate file size
+      const isVideo = mimeType.startsWith('video/');
+      const maxSize = isVideo ? 500 * 1024 * 1024 : 20 * 1024 * 1024; // 500MB for videos, 20MB for images
+
+      if (file.length > maxSize) {
+        const maxSizeMB = isVideo ? 500 : 20;
+        const actualSizeMB = (file.length / (1024 * 1024)).toFixed(2);
+        return res.status(400).json({
+          error: 'File too large',
+          message: `${isVideo ? 'Videos' : 'Images'} must be under ${maxSizeMB}MB. Your file is ${actualSizeMB}MB`
+        });
+      }
+
       // Generate unique filename
       const ext = filename.split('.').pop() || 'png';
       const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
@@ -110,6 +135,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const assetType = isVideo ? 'video' : 'image';
 
       // Save asset record to database
+      // Note: width/height are placeholder values. For accurate video metadata,
+      // would need to use ffprobe or similar tool to extract actual dimensions and duration
       const { data, error } = await supabase
         .from('assets')
         .insert({
@@ -117,8 +144,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           type: assetType,
           mime_type: mimeType,
           size: file.length,
-          width: 1920,
-          height: 1080,
+          width: isVideo ? null : 1920,  // Videos need metadata extraction
+          height: isVideo ? null : 1080,  // Videos need metadata extraction
           url: publicUrl,
           thumbnail_url: publicUrl,
         })
