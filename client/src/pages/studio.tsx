@@ -891,6 +891,28 @@ export default function Studio() {
                 setSelectedVariationIds(new Set());
               }}
               onStatusChange={handleStatusChange}
+              onViewJob={(job) => {
+                // Convert job to variation format for lightbox display
+                if (job.result?.url) {
+                  const tempVariation: Variation = {
+                    id: job.id,
+                    projectId: projectId || '',
+                    jobId: job.id,
+                    prompt: job.prompt,
+                    hypothesis: job.hypothesis || '',
+                    feedback: '',
+                    status: 'pending',
+                    url: job.result.url,
+                    thumbnailUrl: job.result.thumbnailUrl || job.result.url,
+                    sizeConfig: job.sizeConfig,
+                    modelId: job.modelId,
+                    type: job.result.metadata?.isVideo ? 'video' : 'image',
+                    variationIndex: job.variationIndex,
+                    createdAt: job.createdAt,
+                  };
+                  setLightboxVariation(tempVariation);
+                }
+              }}
               onDownloadJob={(job) => {
                 if (job.result?.url) {
                   window.open(job.result.url, '_blank');
