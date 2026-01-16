@@ -1,7 +1,8 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, ChevronLeft, ChevronRight, Download, Image, Film } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { X, ChevronLeft, ChevronRight, Download, Image, Film, Sparkles, MessageSquare } from "lucide-react";
 import type { Variation } from "@shared/schema";
 
 interface LightboxProps {
@@ -10,11 +11,15 @@ interface LightboxProps {
   onClose: () => void;
   onNavigate: (variation: Variation) => void;
   onDownload: (variation: Variation) => void;
+  onRefine?: (variation: Variation, refinementPrompt: string) => void;
 }
 
-export function Lightbox({ variation, variations, onClose, onNavigate, onDownload }: LightboxProps) {
-  const currentIndex = variation 
-    ? variations.findIndex((v) => v.id === variation.id) 
+export function Lightbox({ variation, variations, onClose, onNavigate, onDownload, onRefine }: LightboxProps) {
+  const [showRefinement, setShowRefinement] = useState(false);
+  const [refinementPrompt, setRefinementPrompt] = useState("");
+
+  const currentIndex = variation
+    ? variations.findIndex((v) => v.id === variation.id)
     : -1;
 
   const hasPrev = currentIndex > 0;
@@ -130,30 +135,110 @@ export function Lightbox({ variation, variations, onClose, onNavigate, onDownloa
         )}
       </div>
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
-        <div className="flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-sm px-4 py-2">
-          <Badge variant="secondary" className="gap-1">
-            {variation.type === 'image' ? (
-              <Image className="h-3 w-3" />
-            ) : (
-              <Film className="h-3 w-3" />
-            )}
-            {variation.type}
-          </Badge>
-          <span className="text-sm text-white">
-            {variation.sizeConfig.platform} • {variation.sizeConfig.name}
-          </span>
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3">
+        {/* Refinement Panel */}
+        {showRefinement && onRefine && (
+          <div
+            className="bg-background/95 backdrop-blur-sm rounded-lg border border-border p-4 shadow-lg w-[500px] mb-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Create Refined Variation
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setShowRefinement(false)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <Textarea
+                placeholder="Describe changes you want (e.g., 'make the background brighter', 'add more contrast', 'change to warmer tones')..."
+                value={refinementPrompt}
+                onChange={(e) => setRefinementPrompt(e.target.value)}
+                className="min-h-[80px] resize-none"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex-1 gap-2"
+                  onClick={() => {
+                    if (refinementPrompt.trim() && variation) {
+                      onRefine(variation, refinementPrompt);
+                      setRefinementPrompt("");
+                      setShowRefinement(false);
+                      onClose();
+                    }
+                  }}
+                  disabled={!refinementPrompt.trim()}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Generate Refined Version
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setRefinementPrompt("");
+                    setShowRefinement(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-sm px-4 py-2">
+            <Badge variant="secondary" className="gap-1">
+              {variation.type === 'image' ? (
+                <Image className="h-3 w-3" />
+              ) : (
+                <Film className="h-3 w-3" />
+              )}
+              {variation.type}
+            </Badge>
+            <span className="text-sm text-white">
+              {variation.sizeConfig.platform} • {variation.sizeConfig.name}
+            </span>
+          </div>
+
+          {onRefine && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowRefinement(!showRefinement);
+              }}
+            >
+              <MessageSquare className="h-4 w-4" />
+              Refine
+            </Button>
+          )}
+
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-2"
+            onClick={() => onDownload(variation)}
+            data-testid="button-lightbox-download"
+          >
+            <Download className="h-4 w-4" />
+            Download
+          </Button>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="gap-2"
-          onClick={() => onDownload(variation)}
-          data-testid="button-lightbox-download"
-        >
-          <Download className="h-4 w-4" />
-          Download
-        </Button>
       </div>
     </div>
   );

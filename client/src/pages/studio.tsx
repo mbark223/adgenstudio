@@ -982,6 +982,29 @@ export default function Studio() {
           setSelectedVariationIds(new Set([v.id]));
           setExportModalOpen(true);
         }}
+        onRefine={(variation, refinementPrompt) => {
+          // Create a refined version using the variation as the base
+          if (!projectId) return;
+
+          // Combine original prompt with refinement
+          const combinedPrompt = `${variation.prompt}\n\nRefinement: ${refinementPrompt}`;
+
+          // Generate a new variation based on this one
+          generateMutation.mutate({
+            projectId,
+            prompt: combinedPrompt,
+            assetUrl: variation.url, // Use the variation as source
+            sizes: [variation.sizeConfig],
+            modelId: variation.modelId,
+            variationCount: 1,
+            brandProtections: [],
+          });
+
+          toast({
+            title: "Generating refined variation",
+            description: "Creating a new version based on your feedback..."
+          });
+        }}
       />
 
       {/* Export Modal */}
