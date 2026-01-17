@@ -138,13 +138,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const aspectRatio = getAspectRatio(size.width, size.height);
           console.log(`Adapting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          // Use Nano Banana for aspect ratio adaptation
-          // Note: Flux Dev doesn't change aspect ratios in img2img mode
-          console.log('Outpainting with Nano Banana (supports aspect ratio changes)...');
-          const output = await replicate.run('google/nano-banana', {
+          // Use Stability SD3 for aspect ratio adaptation
+          // SD3 has better outpainting than Nano Banana and supports aspect ratio changes
+          console.log('Outpainting with Stability SD3 (better quality, supports aspect ratio)...');
+          const output = await replicate.run('stability-ai/stable-diffusion-3', {
             input: {
-              prompt: 'seamlessly extend and expand the image canvas to fill the entire target aspect ratio, naturally continue the background scene and elements, maintain exact style and colors, no black bars, no padding, no letterboxing, fill all empty space with extended background content',
-              image_input: [sourceImageUrl],
+              prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and environment, maintain exact same style colors and lighting, extend the background naturally, fill all empty space with organic content extension',
+              image: sourceImageUrl,
+              prompt_strength: 0.15, // Very low to preserve original as much as possible
+              negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, solid color fills, cropped edges, cut off content, vignette',
               aspect_ratio: aspectRatio,
               output_format: 'png',
             }
@@ -165,7 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               source_asset_id: sourceJob.source_asset_id,
               variation_index: sourceJob.variation_index,
               size_config: size,
-              model_id: 'flux-dev', // Track that we used Flux Dev
+              model_id: 'stability-sd3', // Track that we used Stability SD3
               prompt: sourceJob.prompt,
               hypothesis: sourceJob.hypothesis,
               negative_prompt: sourceJob.negative_prompt,
