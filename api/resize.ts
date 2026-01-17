@@ -147,61 +147,83 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             attemptCount++;
 
             try {
-              // Use Flux Dev for superior img2img
-              const output = await replicate.run('black-forest-labs/flux-dev', {
-                input: {
-                  prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and elements, fill all empty space with organic content extension, maintain exact style and colors, no black bars, no padding, no letterboxing, no solid color borders',
-                  image: sourceImageUrl,
-                  prompt_strength: 0.25, // Low strength to preserve original
-                  aspect_ratio: aspectRatio,
-                  output_format: 'png',
-                  num_outputs: 1,
-                  negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, cropped, cut off',
-                }
-              });
+              // Try Flux Dev for superior img2img
+              console.log(`Attempt ${attemptCount}: Generating with Flux Dev...`);
+              let output;
+              try {
+                output = await replicate.run('black-forest-labs/flux-dev', {
+                  input: {
+                    prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and elements, fill all empty space with organic content extension, maintain exact style and colors, no black bars, no padding, no letterboxing, no solid color borders',
+                    image: sourceImageUrl,
+                    prompt_strength: 0.25, // Low strength to preserve original
+                    aspect_ratio: aspectRatio,
+                    output_format: 'png',
+                    num_outputs: 1,
+                    negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, cropped, cut off',
+                  }
+                });
+              } catch (fluxError: any) {
+                console.warn('Flux Dev failed, falling back to Nano Banana:', fluxError.message);
+                // Fallback to Nano Banana
+                output = await replicate.run('google/nano-banana', {
+                  input: {
+                    prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, maintain exact style and colors, no black bars',
+                    image_input: [sourceImageUrl],
+                    aspect_ratio: aspectRatio,
+                    output_format: 'png',
+                  }
+                });
+              }
 
               generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
 
-              // Strategy 2: Check for letterboxing
-              console.log('Checking for letterboxing...');
-              const paddingDetection = await detectLetterboxing(generatedUrl);
+              // Strategy 2: Check for letterboxing (optional, non-fatal)
+              try {
+                console.log('Checking for letterboxing...');
+                const paddingDetection = await detectLetterboxing(generatedUrl);
 
-              if (paddingDetection.hasPadding && paddingDetection.confidence > 0.5) {
-                console.log(`Detected ${paddingDetection.top + paddingDetection.bottom}px padding (${(paddingDetection.confidence * 100).toFixed(0)}% confidence)`);
+                if (paddingDetection.hasPadding && paddingDetection.confidence > 0.5) {
+                  console.log(`Detected ${paddingDetection.top + paddingDetection.bottom}px padding (${(paddingDetection.confidence * 100).toFixed(0)}% confidence)`);
 
-                if (attemptCount < maxAttempts) {
-                  console.log('Retrying with enhanced prompt...');
-                  continue; // Retry with same prompt
-                } else {
-                  // Last attempt: crop and re-outpaint
-                  console.log('Cropping letterboxing and re-outpainting...');
-                  const croppedBuffer = await cropLetterboxing(generatedUrl, paddingDetection);
+                  if (attemptCount < maxAttempts) {
+                    console.log('Retrying with enhanced prompt...');
+                    continue; // Retry with same prompt
+                  } else {
+                    // Last attempt: crop and re-outpaint
+                    console.log('Cropping letterboxing and re-outpainting...');
+                    const croppedBuffer = await cropLetterboxing(generatedUrl, paddingDetection);
 
-                  // Upload cropped version temporarily
-                  const tempPath = `temp/cropped-${Date.now()}.png`;
-                  const { error: uploadError } = await supabase.storage
-                    .from('assets')
-                    .upload(tempPath, croppedBuffer, { contentType: 'image/png', upsert: true });
-
-                  if (!uploadError) {
-                    const { data: { publicUrl: croppedUrl } } = supabase.storage
+                    // Upload cropped version temporarily
+                    const tempPath = `temp/cropped-${Date.now()}.png`;
+                    const { error: uploadError } = await supabase.storage
                       .from('assets')
-                      .getPublicUrl(tempPath);
+                      .upload(tempPath, croppedBuffer, { contentType: 'image/png', upsert: true });
 
-                    // Re-outpaint from cropped version
-                    const retryOutput = await replicate.run('black-forest-labs/flux-dev', {
-                      input: {
-                        prompt: 'seamlessly extend and expand this image to fill the entire canvas naturally, no black bars',
-                        image: croppedUrl,
-                        prompt_strength: 0.2,
-                        aspect_ratio: aspectRatio,
-                        output_format: 'png',
-                        num_outputs: 1,
-                      }
-                    });
-                    generatedUrl = Array.isArray(retryOutput) ? retryOutput[0] as string : retryOutput as string;
+                    if (!uploadError) {
+                      const { data: { publicUrl: croppedUrl } } = supabase.storage
+                        .from('assets')
+                        .getPublicUrl(tempPath);
+
+                      // Re-outpaint from cropped version
+                      const retryOutput = await replicate.run('black-forest-labs/flux-dev', {
+                        input: {
+                          prompt: 'seamlessly extend and expand this image to fill the entire canvas naturally, no black bars',
+                          image: croppedUrl,
+                          prompt_strength: 0.2,
+                          aspect_ratio: aspectRatio,
+                          output_format: 'png',
+                          num_outputs: 1,
+                        }
+                      });
+                      generatedUrl = Array.isArray(retryOutput) ? retryOutput[0] as string : retryOutput as string;
+                    }
                   }
+                } else {
+                  console.log('No significant letterboxing detected');
                 }
+              } catch (detectionError) {
+                // Letterboxing detection failed - continue without it
+                console.warn('Letterboxing detection failed (non-fatal):', detectionError);
               }
 
               finalUrl = generatedUrl;
@@ -274,6 +296,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error: any) {
     console.error('Resize API error:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    return res.status(500).json({
+      error: error.message || 'Internal server error',
+      details: error.toString(),
+    });
   }
 }
