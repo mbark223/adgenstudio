@@ -139,16 +139,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const aspectRatio = getAspectRatio(size.width, size.height);
           console.log(`Adapting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          // Smart crop and scale approach - no AI outpainting needed
-          // This eliminates black bars by design and is instant
-          console.log('Using smart center-crop + scale (no AI outpainting)...');
+          // Contain approach - preserve entire image without cropping or stretching
+          // Extract dominant edge color for natural-looking padding
+          console.log('Using contain + intelligent padding (preserves entire image)...');
 
           // Fetch source image
           const response = await fetch(sourceImageUrl);
           if (!response.ok) throw new Error(`Failed to fetch source image: ${response.status}`);
           const sourceBuffer = Buffer.from(await response.arrayBuffer());
 
-          // Get source dimensions
+          // Get source dimensions and analyze image
           const image = sharp(sourceBuffer);
           const metadata = await image.metadata();
           const sourceWidth = metadata.width;
@@ -158,33 +158,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             throw new Error('Invalid source image: unable to extract dimensions');
           }
 
-          const sourceRatio = sourceWidth / sourceHeight;
-          const targetRatio = size.width / size.height;
+          console.log(`Resizing ${sourceWidth}x${sourceHeight} to fit in ${size.width}x${size.height} (preserving aspect ratio)`);
 
-          // Calculate center-crop dimensions
-          let cropWidth: number, cropHeight: number, cropLeft: number, cropTop: number;
+          // Extract dominant color from edges for intelligent padding
+          let backgroundColor = { r: 0, g: 0, b: 0 }; // Default to black
+          try {
+            // Sample a strip from the bottom edge to get dominant color
+            const edgeSample = await sharp(sourceBuffer)
+              .extract({
+                left: 0,
+                top: Math.max(0, sourceHeight - 50),
+                width: sourceWidth,
+                height: Math.min(50, sourceHeight)
+              })
+              .resize(100, 100) // Downscale for faster processing
+              .raw()
+              .toBuffer({ resolveWithObject: true });
 
-          if (targetRatio > sourceRatio) {
-            // Target is wider - crop height, preserve width
-            cropWidth = sourceWidth;
-            cropHeight = Math.round(sourceWidth / targetRatio);
-            cropLeft = 0;
-            cropTop = Math.round((sourceHeight - cropHeight) / 2);
-          } else {
-            // Target is taller - crop width, preserve height
-            cropHeight = sourceHeight;
-            cropWidth = Math.round(sourceHeight * targetRatio);
-            cropTop = 0;
-            cropLeft = Math.round((sourceWidth - cropWidth) / 2);
+            // Calculate average color
+            const pixels = edgeSample.data;
+            let r = 0, g = 0, b = 0;
+            const pixelCount = pixels.length / 3;
+
+            for (let i = 0; i < pixels.length; i += 3) {
+              r += pixels[i];
+              g += pixels[i + 1];
+              b += pixels[i + 2];
+            }
+
+            backgroundColor = {
+              r: Math.round(r / pixelCount),
+              g: Math.round(g / pixelCount),
+              b: Math.round(b / pixelCount)
+            };
+
+            console.log(`Detected edge color: rgb(${backgroundColor.r}, ${backgroundColor.g}, ${backgroundColor.b})`);
+          } catch (err) {
+            console.warn('Failed to detect edge color, using black:', err);
           }
 
-          console.log(`Cropping from ${sourceWidth}x${sourceHeight} to ${cropWidth}x${cropHeight}, then scaling to ${size.width}x${size.height}`);
-
-          // Center-crop then scale to exact target dimensions
+          // Resize with contain - entire image fits, adds padding as needed
           const resizedBuffer = await image
-            .extract({ left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight })
             .resize(size.width, size.height, {
-              fit: 'fill',
+              fit: 'contain', // Preserve aspect ratio, entire image visible
+              background: backgroundColor,
               kernel: 'lanczos3' // High quality scaling
             })
             .png()
@@ -219,7 +236,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               source_asset_id: sourceJob.source_asset_id,
               variation_index: sourceJob.variation_index,
               size_config: size,
-              model_id: 'smart-crop', // Using smart center-crop + scale (no AI)
+              model_id: 'smart-contain', // Using contain + intelligent padding (no AI)
               prompt: sourceJob.prompt,
               hypothesis: sourceJob.hypothesis,
               negative_prompt: sourceJob.negative_prompt,
@@ -231,7 +248,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 thumbnailUrl: permanentUrl,
                 metadata: {
                   resizedFrom: sourceJobId,
-                  method: 'smart-crop-scale',
+                  method: 'contain-intelligent-padding',
+                  preservesEntireImage: true,
                   generatedAt: new Date().toISOString(),
                   attemptsRequired: attemptCount,
                 },
