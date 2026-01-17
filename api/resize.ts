@@ -222,6 +222,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const offsetX = Math.round((size.width - scaledWidth) / 2);
             const offsetY = Math.round((size.height - scaledHeight) / 2);
 
+            // Add safety margin - expand the black area to prevent AI from touching content edges
+            const marginPixels = 20; // 20px safety margin
+            const maskOffsetX = Math.max(0, offsetX - marginPixels);
+            const maskOffsetY = Math.max(0, offsetY - marginPixels);
+            const maskWidth = Math.min(size.width - maskOffsetX, scaledWidth + (marginPixels * 2));
+            const maskHeight = Math.min(size.height - maskOffsetY, scaledHeight + (marginPixels * 2));
+
             // Create mask: start with white (255 = fill all), then draw black rectangle where content is (0 = preserve)
             const maskBuffer = await sharp({
               create: {
@@ -234,7 +241,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .composite([{
               input: Buffer.from(
                 `<svg width="${size.width}" height="${size.height}">
-                  <rect x="${offsetX}" y="${offsetY}" width="${scaledWidth}" height="${scaledHeight}" fill="black"/>
+                  <rect x="${maskOffsetX}" y="${maskOffsetY}" width="${maskWidth}" height="${maskHeight}" fill="black"/>
                 </svg>`
               ),
               top: 0,
@@ -268,13 +275,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log('Using FLUX Fill Pro to extend background naturally...');
             const output = await replicate.run('black-forest-labs/flux-fill-pro', {
               input: {
-                prompt: 'Seamlessly extend and expand the existing background scene. Continue the environment naturally to fill the empty space. Match the exact lighting, colors, style, and atmosphere. Maintain perfect continuity with the original scene.',
+                prompt: 'CRITICAL: Only modify the white masked areas - DO NOT change any content in the black masked area. The center content MUST remain 100% pixel-perfect identical to the original. Only extend and expand the background scene into the white masked empty space. Continue the existing background environment naturally (blurred tropical scenery, palm trees, sunset/beach atmosphere). Match the exact same lighting, colors, blur level, and atmospheric style. Fill only the top and bottom empty areas with natural background continuation. Preserve all text, graphics, logos, and central content exactly as-is without any modifications whatsoever.',
                 image: imageUrl,
                 mask: maskUrl,
-                steps: 30,
-                guidance: 30,
+                steps: 25,
+                guidance: 20, // Lower guidance for less creativity
                 output_format: 'png',
-                safety_tolerance: 5
+                safety_tolerance: 6
               }
             });
 
