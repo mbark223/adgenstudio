@@ -329,19 +329,34 @@ export default function Studio() {
     },
     onSuccess: (data: { jobs: GenerationJob[]; created: number; failed: number }) => {
       console.log('Resize completed:', data);
+      console.log('Project ID:', projectId);
+      console.log('Number of jobs returned:', data.jobs?.length);
+
       // Optimistically add the new jobs to the cache
       if (data.jobs && data.jobs.length > 0) {
+        console.log('Adding jobs to cache...');
         queryClient.setQueryData(["/api/jobs", projectId], (oldJobs: GenerationJob[] = []) => {
+          console.log('Old jobs count:', oldJobs.length);
+          console.log('New jobs count:', data.jobs.length);
           return [...oldJobs, ...data.jobs];
         });
       }
+
       // Also invalidate to ensure we have the latest data
+      console.log('Invalidating queries for project:', projectId);
       queryClient.invalidateQueries({ queryKey: ["/api/jobs", projectId] });
       queryClient.invalidateQueries({ queryKey: ["/api/variations", projectId] });
+
       toast({
         title: "Sizes created",
         description: `Created ${data.created} resized variation${data.created !== 1 ? 's' : ''}${data.failed > 0 ? ` (${data.failed} failed)` : ''}.`,
       });
+
+      // Force a refetch after a short delay to ensure database has committed
+      setTimeout(() => {
+        console.log('Force refetching after 1 second...');
+        queryClient.refetchQueries({ queryKey: ["/api/variations", projectId] });
+      }, 1000);
     },
     onError: (error: any) => {
       console.error('Resize error:', error);

@@ -159,6 +159,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const sourceImageUrl = sourceJob.result.url;
 
+      // Get max variation index for this project to assign unique indices to resized variations
+      const { data: existingVariations, error: maxIndexError } = await supabase
+        .from('variations')
+        .select('variation_index')
+        .eq('project_id', sourceJob.project_id)
+        .order('variation_index', { ascending: false })
+        .limit(1);
+
+      if (maxIndexError) {
+        console.error('Failed to get max variation index:', maxIndexError);
+      }
+
+      let nextVariationIndex = (existingVariations && existingVariations.length > 0)
+        ? existingVariations[0].variation_index + 1
+        : 0;
+
+      console.log(`Next available variation_index: ${nextVariationIndex}`);
+
       // Process each target size using Flux Dev with fallback
       const results = await Promise.allSettled(
         targetSizes.map(async (size) => {
@@ -250,13 +268,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
           }
 
+          // Assign unique variation index for this resized variation
+          const thisVariationIndex = nextVariationIndex++;
+
           // Create job record
           const { data: newJob, error: insertError } = await supabase
             .from('generation_jobs')
             .insert({
               project_id: sourceJob.project_id,
               source_asset_id: sourceJob.source_asset_id,
-              variation_index: sourceJob.variation_index,
+              variation_index: thisVariationIndex,
               size_config: size,
               model_id: needsAIExtension ? 'luma-reframe' : 'smart-contain',
               prompt: sourceJob.prompt,
@@ -285,14 +306,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           if (insertError) throw new Error(`Job insert failed: ${insertError.message}`);
 
+          console.log(`Creating variation record for job ${newJob.id} with variation_index ${thisVariationIndex}...`);
+
           // Create variation record so it appears in main variations grid
-          const { error: variationError } = await supabase
+          const { data: variationData, error: variationError } = await supabase
             .from('variations')
             .insert({
               project_id: sourceJob.project_id,
               job_id: newJob.id,
               source_asset_id: sourceJob.source_asset_id,
-              variation_index: sourceJob.variation_index,
+              variation_index: thisVariationIndex,
               size_config: size,
               model_id: needsAIExtension ? 'luma-reframe' : 'smart-contain',
               prompt: sourceJob.prompt,
@@ -301,11 +324,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               thumbnail_url: permanentUrl,
               type: 'image',
               selected: false,
-            });
+            })
+            .select()
+            .single();
 
           if (variationError) {
             console.error('Failed to create variation record:', variationError);
+            console.error('Variation error details:', JSON.stringify(variationError, null, 2));
             // Continue - job creation succeeded, variation is secondary
+          } else {
+            console.log(`Variation created successfully: ${variationData?.id} with index ${thisVariationIndex}`);
           }
 
           return newJob;
