@@ -138,33 +138,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const aspectRatio = getAspectRatio(size.width, size.height);
           console.log(`Adapting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          // Try Flux Dev for aspect ratio adaptation
-          console.log('Generating with Flux Dev...');
-          let output;
-          try {
-            output = await replicate.run('black-forest-labs/flux-dev', {
-              input: {
-                prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and elements, fill all empty space with organic content extension, maintain exact style and colors, no black bars, no padding, no letterboxing, no solid color borders',
-                image: sourceImageUrl,
-                prompt_strength: 0.25, // Low strength to preserve original
-                aspect_ratio: aspectRatio,
-                output_format: 'png',
-                num_outputs: 1,
-                negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, cropped, cut off',
-              }
-            });
-          } catch (fluxError: any) {
-            console.warn('Flux Dev failed, falling back to Nano Banana:', fluxError.message);
-            // Fallback to Nano Banana
-            output = await replicate.run('google/nano-banana', {
-              input: {
-                prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, maintain exact style and colors, no black bars',
-                image_input: [sourceImageUrl],
-                aspect_ratio: aspectRatio,
-                output_format: 'png',
-              }
-            });
-          }
+          // Use Nano Banana for aspect ratio adaptation
+          // Note: Flux Dev doesn't change aspect ratios in img2img mode
+          console.log('Outpainting with Nano Banana (supports aspect ratio changes)...');
+          const output = await replicate.run('google/nano-banana', {
+            input: {
+              prompt: 'seamlessly extend and expand the image canvas to fill the entire target aspect ratio, naturally continue the background scene and elements, maintain exact style and colors, no black bars, no padding, no letterboxing, fill all empty space with extended background content',
+              image_input: [sourceImageUrl],
+              aspect_ratio: aspectRatio,
+              output_format: 'png',
+            }
+          });
 
           const generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
           const finalUrl = generatedUrl;
