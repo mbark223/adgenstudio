@@ -1,12 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import Replicate from 'replicate';
+import sharp from 'sharp';
 // Temporarily disabled: letterboxing detection causes serverless issues
 // import { detectLetterboxing, cropLetterboxing } from './utils/detectLetterboxing';
 
-// Vercel function config - extend timeout for AI outpainting
+// Vercel function config - extended timeout for image processing
 export const config = {
-  maxDuration: 300, // 5 minutes for AI generation
+  maxDuration: 300, // 5 minutes (smart crop should be <10s but allowing buffer)
 };
 
 function getSupabase() {
@@ -138,26 +139,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const aspectRatio = getAspectRatio(size.width, size.height);
           console.log(`Adapting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          // Use Stability SD3 for aspect ratio adaptation
-          // SD3 has better outpainting than Nano Banana and supports aspect ratio changes
-          console.log('Outpainting with Stability SD3 (better quality, supports aspect ratio)...');
-          const output = await replicate.run('stability-ai/stable-diffusion-3', {
-            input: {
-              prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and environment, maintain exact same style colors and lighting, extend the background naturally, fill all empty space with organic content extension',
-              image: sourceImageUrl,
-              prompt_strength: 0.15, // Very low to preserve original as much as possible
-              negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, solid color fills, cropped edges, cut off content, vignette',
-              aspect_ratio: aspectRatio,
-              output_format: 'png',
-            }
-          });
+          // Smart crop and scale approach - no AI outpainting needed
+          // This eliminates black bars by design and is instant
+          console.log('Using smart center-crop + scale (no AI outpainting)...');
 
-          const generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
-          const finalUrl = generatedUrl;
+          // Fetch source image
+          const response = await fetch(sourceImageUrl);
+          if (!response.ok) throw new Error(`Failed to fetch source image: ${response.status}`);
+          const sourceBuffer = Buffer.from(await response.arrayBuffer());
+
+          // Get source dimensions
+          const image = sharp(sourceBuffer);
+          const metadata = await image.metadata();
+          const sourceWidth = metadata.width;
+          const sourceHeight = metadata.height;
+
+          if (!sourceWidth || !sourceHeight) {
+            throw new Error('Invalid source image: unable to extract dimensions');
+          }
+
+          const sourceRatio = sourceWidth / sourceHeight;
+          const targetRatio = size.width / size.height;
+
+          // Calculate center-crop dimensions
+          let cropWidth: number, cropHeight: number, cropLeft: number, cropTop: number;
+
+          if (targetRatio > sourceRatio) {
+            // Target is wider - crop height, preserve width
+            cropWidth = sourceWidth;
+            cropHeight = Math.round(sourceWidth / targetRatio);
+            cropLeft = 0;
+            cropTop = Math.round((sourceHeight - cropHeight) / 2);
+          } else {
+            // Target is taller - crop width, preserve height
+            cropHeight = sourceHeight;
+            cropWidth = Math.round(sourceHeight * targetRatio);
+            cropTop = 0;
+            cropLeft = Math.round((sourceWidth - cropWidth) / 2);
+          }
+
+          console.log(`Cropping from ${sourceWidth}x${sourceHeight} to ${cropWidth}x${cropHeight}, then scaling to ${size.width}x${size.height}`);
+
+          // Center-crop then scale to exact target dimensions
+          const resizedBuffer = await image
+            .extract({ left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight })
+            .resize(size.width, size.height, {
+              fit: 'fill',
+              kernel: 'lanczos3' // High quality scaling
+            })
+            .png()
+            .toBuffer();
+
+          // Upload directly to storage
+          const filePath = `generated/resize-${sourceJobId}-${size.width}x${size.height}-${Date.now()}.png`;
+          const { error: uploadError } = await supabase.storage
+            .from('assets')
+            .upload(filePath, resizedBuffer, {
+              contentType: 'image/png',
+              upsert: true,
+            });
+
+          if (uploadError) {
+            throw new Error(`Storage upload failed: ${uploadError.message}`);
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('assets')
+            .getPublicUrl(filePath);
+
+          const finalUrl = publicUrl;
+          const permanentUrl = finalUrl; // Already uploaded to permanent storage
           const attemptCount = 1;
-
-          // Upload to permanent storage
-          const permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
 
           // Create job record
           const { data: newJob, error: insertError } = await supabase
@@ -167,7 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               source_asset_id: sourceJob.source_asset_id,
               variation_index: sourceJob.variation_index,
               size_config: size,
-              model_id: 'stability-sd3', // Track that we used Stability SD3
+              model_id: 'smart-crop', // Using smart center-crop + scale (no AI)
               prompt: sourceJob.prompt,
               hypothesis: sourceJob.hypothesis,
               negative_prompt: sourceJob.negative_prompt,
@@ -178,7 +230,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 url: permanentUrl,
                 thumbnailUrl: permanentUrl,
                 metadata: {
-                  outpaintedFrom: sourceJobId,
+                  resizedFrom: sourceJobId,
+                  method: 'smart-crop-scale',
                   generatedAt: new Date().toISOString(),
                   attemptsRequired: attemptCount,
                 },
