@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import Replicate from 'replicate';
-import { detectLetterboxing, cropLetterboxing } from './utils/detectLetterboxing';
+// Temporarily disabled: letterboxing detection causes serverless issues
+// import { detectLetterboxing, cropLetterboxing } from './utils/detectLetterboxing';
 
 // Vercel function config - extend timeout for AI outpainting
 export const config = {
@@ -137,103 +138,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const aspectRatio = getAspectRatio(size.width, size.height);
           console.log(`Adapting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          // Strategy 1: Try Flux Dev for aspect ratio adaptation
-          let generatedUrl: string;
-          let attemptCount = 0;
-          const maxAttempts = 2;
-          let finalUrl: string | null = null;
-
-          while (attemptCount < maxAttempts && !finalUrl) {
-            attemptCount++;
-
-            try {
-              // Try Flux Dev for superior img2img
-              console.log(`Attempt ${attemptCount}: Generating with Flux Dev...`);
-              let output;
-              try {
-                output = await replicate.run('black-forest-labs/flux-dev', {
-                  input: {
-                    prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and elements, fill all empty space with organic content extension, maintain exact style and colors, no black bars, no padding, no letterboxing, no solid color borders',
-                    image: sourceImageUrl,
-                    prompt_strength: 0.25, // Low strength to preserve original
-                    aspect_ratio: aspectRatio,
-                    output_format: 'png',
-                    num_outputs: 1,
-                    negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, cropped, cut off',
-                  }
-                });
-              } catch (fluxError: any) {
-                console.warn('Flux Dev failed, falling back to Nano Banana:', fluxError.message);
-                // Fallback to Nano Banana
-                output = await replicate.run('google/nano-banana', {
-                  input: {
-                    prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, maintain exact style and colors, no black bars',
-                    image_input: [sourceImageUrl],
-                    aspect_ratio: aspectRatio,
-                    output_format: 'png',
-                  }
-                });
+          // Try Flux Dev for aspect ratio adaptation
+          console.log('Generating with Flux Dev...');
+          let output;
+          try {
+            output = await replicate.run('black-forest-labs/flux-dev', {
+              input: {
+                prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and elements, fill all empty space with organic content extension, maintain exact style and colors, no black bars, no padding, no letterboxing, no solid color borders',
+                image: sourceImageUrl,
+                prompt_strength: 0.25, // Low strength to preserve original
+                aspect_ratio: aspectRatio,
+                output_format: 'png',
+                num_outputs: 1,
+                negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, cropped, cut off',
               }
-
-              generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
-
-              // Strategy 2: Check for letterboxing (optional, non-fatal)
-              try {
-                console.log('Checking for letterboxing...');
-                const paddingDetection = await detectLetterboxing(generatedUrl);
-
-                if (paddingDetection.hasPadding && paddingDetection.confidence > 0.5) {
-                  console.log(`Detected ${paddingDetection.top + paddingDetection.bottom}px padding (${(paddingDetection.confidence * 100).toFixed(0)}% confidence)`);
-
-                  if (attemptCount < maxAttempts) {
-                    console.log('Retrying with enhanced prompt...');
-                    continue; // Retry with same prompt
-                  } else {
-                    // Last attempt: crop and re-outpaint
-                    console.log('Cropping letterboxing and re-outpainting...');
-                    const croppedBuffer = await cropLetterboxing(generatedUrl, paddingDetection);
-
-                    // Upload cropped version temporarily
-                    const tempPath = `temp/cropped-${Date.now()}.png`;
-                    const { error: uploadError } = await supabase.storage
-                      .from('assets')
-                      .upload(tempPath, croppedBuffer, { contentType: 'image/png', upsert: true });
-
-                    if (!uploadError) {
-                      const { data: { publicUrl: croppedUrl } } = supabase.storage
-                        .from('assets')
-                        .getPublicUrl(tempPath);
-
-                      // Re-outpaint from cropped version
-                      const retryOutput = await replicate.run('black-forest-labs/flux-dev', {
-                        input: {
-                          prompt: 'seamlessly extend and expand this image to fill the entire canvas naturally, no black bars',
-                          image: croppedUrl,
-                          prompt_strength: 0.2,
-                          aspect_ratio: aspectRatio,
-                          output_format: 'png',
-                          num_outputs: 1,
-                        }
-                      });
-                      generatedUrl = Array.isArray(retryOutput) ? retryOutput[0] as string : retryOutput as string;
-                    }
-                  }
-                } else {
-                  console.log('No significant letterboxing detected');
-                }
-              } catch (detectionError) {
-                // Letterboxing detection failed - continue without it
-                console.warn('Letterboxing detection failed (non-fatal):', detectionError);
+            });
+          } catch (fluxError: any) {
+            console.warn('Flux Dev failed, falling back to Nano Banana:', fluxError.message);
+            // Fallback to Nano Banana
+            output = await replicate.run('google/nano-banana', {
+              input: {
+                prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, maintain exact style and colors, no black bars',
+                image_input: [sourceImageUrl],
+                aspect_ratio: aspectRatio,
+                output_format: 'png',
               }
-
-              finalUrl = generatedUrl;
-            } catch (error) {
-              console.error(`Attempt ${attemptCount} failed:`, error);
-              if (attemptCount >= maxAttempts) throw error;
-            }
+            });
           }
 
-          if (!finalUrl) throw new Error('All outpainting attempts failed');
+          const generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
+          const finalUrl = generatedUrl;
+          const attemptCount = 1;
 
           // Upload to permanent storage
           const permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
