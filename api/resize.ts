@@ -268,12 +268,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
               });
 
-              console.log('Luma Reframe output:', output);
+              console.log('Luma Reframe output type:', typeof output);
+              console.log('Luma Reframe output:', JSON.stringify(output, null, 2));
 
-              const generatedUrl = Array.isArray(output) ? output[0] : output;
-              if (typeof generatedUrl !== 'string') {
-                throw new Error(`Invalid output from Luma Reframe: ${typeof generatedUrl}`);
+              // Handle different output formats
+              let generatedUrl: string;
+
+              if (typeof output === 'string') {
+                // Direct URL string
+                generatedUrl = output;
+              } else if (Array.isArray(output)) {
+                // Array of URLs
+                generatedUrl = output[0];
+              } else if (output && typeof output === 'object') {
+                // Prediction object with output property
+                const outputObj = output as any;
+                if (typeof outputObj.output === 'string') {
+                  generatedUrl = outputObj.output;
+                } else if (Array.isArray(outputObj.output)) {
+                  generatedUrl = outputObj.output[0];
+                } else if (outputObj.url) {
+                  // Sometimes models return {url: "..."}
+                  generatedUrl = outputObj.url;
+                } else {
+                  throw new Error(`Invalid Luma Reframe output structure: ${JSON.stringify(output)}`);
+                }
+              } else {
+                throw new Error(`Invalid output from Luma Reframe: ${typeof output}`);
               }
+
+              if (!generatedUrl || typeof generatedUrl !== 'string') {
+                throw new Error(`Failed to extract URL from Luma Reframe output: ${generatedUrl}`);
+              }
+
+              console.log('Extracted URL:', generatedUrl);
 
               finalUrl = generatedUrl;
               permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
