@@ -268,40 +268,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
               });
 
-              console.log('Luma Reframe output type:', typeof output);
-              console.log('Luma Reframe output:', JSON.stringify(output, null, 2));
+              console.log('Luma Reframe raw output type:', typeof output);
+              console.log('Luma Reframe raw output keys:', output && typeof output === 'object' ? Object.keys(output) : 'N/A');
 
-              // Handle different output formats
+              // Handle different output formats from Replicate SDK
               let generatedUrl: string;
 
               if (typeof output === 'string') {
                 // Direct URL string
                 generatedUrl = output;
+                console.log('Output is direct string URL');
               } else if (Array.isArray(output)) {
-                // Array of URLs
-                generatedUrl = output[0];
+                // Array of URLs or FileOutput objects
+                const firstItem = output[0];
+                if (typeof firstItem === 'string') {
+                  generatedUrl = firstItem;
+                } else if (firstItem && typeof firstItem === 'object') {
+                  // FileOutput object with url() method or toString()
+                  generatedUrl = firstItem.toString();
+                } else {
+                  throw new Error(`Invalid array item type: ${typeof firstItem}`);
+                }
+                console.log('Output is array, extracted:', generatedUrl);
               } else if (output && typeof output === 'object') {
-                // Prediction object with output property
                 const outputObj = output as any;
+
+                // Try different properties in order
                 if (typeof outputObj.output === 'string') {
                   generatedUrl = outputObj.output;
+                  console.log('Extracted from output.output');
                 } else if (Array.isArray(outputObj.output)) {
-                  generatedUrl = outputObj.output[0];
-                } else if (outputObj.url) {
-                  // Sometimes models return {url: "..."}
+                  const firstItem = outputObj.output[0];
+                  generatedUrl = typeof firstItem === 'string' ? firstItem : firstItem.toString();
+                  console.log('Extracted from output.output[0]');
+                } else if (typeof outputObj.url === 'function') {
+                  // FileOutput with url() method
+                  generatedUrl = outputObj.url();
+                  console.log('Extracted from output.url() function');
+                } else if (typeof outputObj.url === 'string') {
                   generatedUrl = outputObj.url;
+                  console.log('Extracted from output.url property');
+                } else if (typeof outputObj.toString === 'function') {
+                  // FileOutput with toString()
+                  generatedUrl = outputObj.toString();
+                  console.log('Extracted from output.toString()');
                 } else {
-                  throw new Error(`Invalid Luma Reframe output structure: ${JSON.stringify(output)}`);
+                  throw new Error(`Invalid Luma Reframe output structure. Keys: ${Object.keys(outputObj).join(', ')}`);
                 }
               } else {
                 throw new Error(`Invalid output from Luma Reframe: ${typeof output}`);
               }
 
               if (!generatedUrl || typeof generatedUrl !== 'string') {
-                throw new Error(`Failed to extract URL from Luma Reframe output: ${generatedUrl}`);
+                throw new Error(`Failed to extract valid URL string. Got: ${typeof generatedUrl} - ${generatedUrl}`);
               }
 
-              console.log('Extracted URL:', generatedUrl);
+              // Validate it's actually a URL
+              try {
+                new URL(generatedUrl);
+              } catch (urlError) {
+                throw new Error(`Extracted value is not a valid URL: ${generatedUrl}`);
+              }
+
+              console.log('Final extracted URL:', generatedUrl);
 
               // Download Luma's reframed image
               const lumaResponse = await fetch(generatedUrl);
