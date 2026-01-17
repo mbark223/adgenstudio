@@ -542,6 +542,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         actualProjectId = projectData.id;
       }
 
+      // Helper: Determine master size (prefer 1:1, otherwise largest)
+      // Master-derivative flow: Generate master first, derive others via outpainting
+      // TODO: Implement full master-derivative where derivatives are outpainted from master
+      // Currently generating all sizes independently for faster parallel processing
+      const getMasterSize = (sizesArray: typeof sizes) => {
+        const square = sizesArray.find(s => Math.abs(s.width / s.height - 1) < 0.01);
+        if (square) return square;
+        return sizesArray.reduce((largest, size) => {
+          const area = size.width * size.height;
+          const largestArea = largest.width * largest.height;
+          return area > largestArea ? size : largest;
+        }, sizesArray[0]);
+      };
+
       // Create generation jobs
       const jobsToInsert = [];
       for (let v = 0; v < variationCount; v++) {

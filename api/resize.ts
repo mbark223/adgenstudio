@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import Replicate from 'replicate';
+import { detectLetterboxing, cropLetterboxing } from './utils/detectLetterboxing';
 
 // Vercel function config - extend timeout for AI outpainting
 export const config = {
@@ -130,37 +131,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const sourceImageUrl = sourceJob.result.url;
 
-      // Process each target size in parallel using AI outpainting
+      // Process each target size using Flux Dev with fallback
       const results = await Promise.allSettled(
         targetSizes.map(async (size) => {
           const aspectRatio = getAspectRatio(size.width, size.height);
+          console.log(`Adapting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          console.log(`Outpainting to ${size.width}x${size.height} (${aspectRatio})`);
-
-          // Use Nano Banana for outpainting - it handles aspect ratio changes well
-          const output = await replicate.run('google/nano-banana', {
-            input: {
-              prompt: 'extend the background naturally, maintain the exact same style and colors, seamless extension',
-              image_input: [sourceImageUrl],
-              aspect_ratio: aspectRatio,
-              output_format: 'png',
-            }
-          });
-
-          // Get the generated URL
+          // Strategy 1: Try Flux Dev for aspect ratio adaptation
           let generatedUrl: string;
-          if (Array.isArray(output)) {
-            generatedUrl = output[0] as string;
-          } else if (typeof output === 'object' && output !== null && 'output' in output) {
-            generatedUrl = (output as any).output as string;
-          } else {
-            generatedUrl = output as string;
+          let attemptCount = 0;
+          const maxAttempts = 2;
+          let finalUrl: string | null = null;
+
+          while (attemptCount < maxAttempts && !finalUrl) {
+            attemptCount++;
+
+            try {
+              // Use Flux Dev for superior img2img
+              const output = await replicate.run('black-forest-labs/flux-dev', {
+                input: {
+                  prompt: 'seamlessly extend and expand the image canvas to fill the entire frame, naturally continue the background scene and elements, fill all empty space with organic content extension, maintain exact style and colors, no black bars, no padding, no letterboxing, no solid color borders',
+                  image: sourceImageUrl,
+                  prompt_strength: 0.25, // Low strength to preserve original
+                  aspect_ratio: aspectRatio,
+                  output_format: 'png',
+                  num_outputs: 1,
+                  negative_prompt: 'black bars, letterboxing, padding, empty space, solid black borders, solid white borders, cropped, cut off',
+                }
+              });
+
+              generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
+
+              // Strategy 2: Check for letterboxing
+              console.log('Checking for letterboxing...');
+              const paddingDetection = await detectLetterboxing(generatedUrl);
+
+              if (paddingDetection.hasPadding && paddingDetection.confidence > 0.5) {
+                console.log(`Detected ${paddingDetection.top + paddingDetection.bottom}px padding (${(paddingDetection.confidence * 100).toFixed(0)}% confidence)`);
+
+                if (attemptCount < maxAttempts) {
+                  console.log('Retrying with enhanced prompt...');
+                  continue; // Retry with same prompt
+                } else {
+                  // Last attempt: crop and re-outpaint
+                  console.log('Cropping letterboxing and re-outpainting...');
+                  const croppedBuffer = await cropLetterboxing(generatedUrl, paddingDetection);
+
+                  // Upload cropped version temporarily
+                  const tempPath = `temp/cropped-${Date.now()}.png`;
+                  const { error: uploadError } = await supabase.storage
+                    .from('assets')
+                    .upload(tempPath, croppedBuffer, { contentType: 'image/png', upsert: true });
+
+                  if (!uploadError) {
+                    const { data: { publicUrl: croppedUrl } } = supabase.storage
+                      .from('assets')
+                      .getPublicUrl(tempPath);
+
+                    // Re-outpaint from cropped version
+                    const retryOutput = await replicate.run('black-forest-labs/flux-dev', {
+                      input: {
+                        prompt: 'seamlessly extend and expand this image to fill the entire canvas naturally, no black bars',
+                        image: croppedUrl,
+                        prompt_strength: 0.2,
+                        aspect_ratio: aspectRatio,
+                        output_format: 'png',
+                        num_outputs: 1,
+                      }
+                    });
+                    generatedUrl = Array.isArray(retryOutput) ? retryOutput[0] as string : retryOutput as string;
+                  }
+                }
+              }
+
+              finalUrl = generatedUrl;
+            } catch (error) {
+              console.error(`Attempt ${attemptCount} failed:`, error);
+              if (attemptCount >= maxAttempts) throw error;
+            }
           }
 
-          // Upload to permanent storage
-          const permanentUrl = await uploadToStorage(generatedUrl, sourceJobId, size);
+          if (!finalUrl) throw new Error('All outpainting attempts failed');
 
-          // Create new job record as already completed
+          // Upload to permanent storage
+          const permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
+
+          // Create job record
           const { data: newJob, error: insertError } = await supabase
             .from('generation_jobs')
             .insert({
@@ -168,7 +224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               source_asset_id: sourceJob.source_asset_id,
               variation_index: sourceJob.variation_index,
               size_config: size,
-              model_id: sourceJob.model_id,
+              model_id: 'flux-dev', // Track that we used Flux Dev
               prompt: sourceJob.prompt,
               hypothesis: sourceJob.hypothesis,
               negative_prompt: sourceJob.negative_prompt,
@@ -181,6 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 metadata: {
                   outpaintedFrom: sourceJobId,
                   generatedAt: new Date().toISOString(),
+                  attemptsRequired: attemptCount,
                 },
               },
               completed_at: new Date().toISOString(),
@@ -188,10 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .select()
             .single();
 
-          if (insertError) {
-            throw new Error(`Job insert failed: ${insertError.message}`);
-          }
-
+          if (insertError) throw new Error(`Job insert failed: ${insertError.message}`);
           return newJob;
         })
       );
