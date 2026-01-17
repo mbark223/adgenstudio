@@ -337,6 +337,7 @@ export default function Studio() {
       }
       // Also invalidate to ensure we have the latest data
       queryClient.invalidateQueries({ queryKey: ["/api/jobs", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/variations", projectId] });
       toast({
         title: "Sizes created",
         description: `Created ${data.created} resized variation${data.created !== 1 ? 's' : ''}${data.failed > 0 ? ` (${data.failed} failed)` : ''}.`,

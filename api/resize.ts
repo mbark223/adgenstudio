@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import Replicate from 'replicate';
 import sharp from 'sharp';
+import type { SafeZone } from '@shared/schema';
 // Temporarily disabled: letterboxing detection causes serverless issues
 // import { detectLetterboxing, cropLetterboxing } from './utils/detectLetterboxing';
 
@@ -45,6 +46,27 @@ function getAspectRatio(width: number, height: number): string {
   if (ratio > 0.9) return '1:1';
   if (ratio > 0.7) return '4:5';
   return '9:16';
+}
+
+// Build prompt for Luma Reframe with safe zone guidance
+function buildReframePrompt(safeZone?: SafeZone): string {
+  if (!safeZone) {
+    return 'Professional advertisement image. Preserve center content pixel-perfect. Extend background naturally to fill frame. Match exact lighting, colors, and style.';
+  }
+
+  const constraints = [];
+  if (safeZone.top > 0) {
+    constraints.push(`keep top ${safeZone.top}px area clear for platform UI elements`);
+  }
+  if (safeZone.bottom > 0) {
+    constraints.push(`keep bottom ${safeZone.bottom}px area clear for platform UI elements`);
+  }
+
+  const safeZoneGuidance = constraints.length > 0
+    ? ` IMPORTANT: ${constraints.join(', ')}.`
+    : '';
+
+  return `Professional advertisement image. Preserve center content exactly as-is with all text, graphics, and logos unchanged.${safeZoneGuidance} Extend background naturally to fill frame. Match exact lighting, colors, and atmospheric style.`;
 }
 
 // Download image from URL and upload to Supabase Storage
@@ -203,123 +225,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             finalUrl = publicUrl;
             permanentUrl = finalUrl;
           } else {
-            // Large difference - use FLUX Fill Pro for proper outpainting
-            console.log('Large aspect ratio difference, using FLUX Fill Pro outpainting...');
+            // Large difference - use Luma Reframe for intelligent aspect ratio adaptation
+            console.log('Large aspect ratio difference, using Luma Reframe...');
 
-            // Step 1: Create canvas with image centered (with black bars)
-            const containedBuffer = await image
-              .resize(size.width, size.height, {
-                fit: 'contain',
-                background: { r: 0, g: 0, b: 0, alpha: 1 },
-                kernel: 'lanczos3'
-              })
-              .png()
-              .toBuffer();
-
-            // Step 2: Create mask - white where we need to fill (black bars), black where to preserve (center content + safe zones)
-            // Calculate the preserved area dimensions
-            const scaleFactorWidth = size.width / sourceWidth;
-            const scaleFactorHeight = size.height / sourceHeight;
-            const scaleFactor = Math.min(scaleFactorWidth, scaleFactorHeight);
-            const scaledWidth = Math.round(sourceWidth * scaleFactor);
-            const scaledHeight = Math.round(sourceHeight * scaleFactor);
-            const offsetX = Math.round((size.width - scaledWidth) / 2);
-            const offsetY = Math.round((size.height - scaledHeight) / 2);
-
-            // Add safety margin - expand the black area to prevent AI from touching content edges
-            const marginPixels = 20; // 20px safety margin
-            const maskOffsetX = Math.max(0, offsetX - marginPixels);
-            const maskOffsetY = Math.max(0, offsetY - marginPixels);
-            const maskWidth = Math.min(size.width - maskOffsetX, scaledWidth + (marginPixels * 2));
-            const maskHeight = Math.min(size.height - maskOffsetY, scaledHeight + (marginPixels * 2));
-
-            // Get platform safe zones (areas where UI elements appear - must be preserved)
             const safeZone = size.safeZone || { top: 0, right: 0, bottom: 0, left: 0 };
+            console.log(`Safe zones: top=${safeZone.top}px, right=${safeZone.right}px, bottom=${safeZone.bottom}px, left=${safeZone.left}px`);
 
-            // Create mask: start with white (255 = fill all), then draw black rectangles for preserved areas
-            const svgRects = [
-              // Center content area (with safety margin)
-              `<rect x="${maskOffsetX}" y="${maskOffsetY}" width="${maskWidth}" height="${maskHeight}" fill="black"/>`,
-            ];
-
-            // Add safe zone rectangles (platform UI areas that must remain clear)
-            if (safeZone.top > 0) {
-              svgRects.push(`<rect x="0" y="0" width="${size.width}" height="${safeZone.top}" fill="black"/>`);
-            }
-            if (safeZone.bottom > 0) {
-              svgRects.push(`<rect x="0" y="${size.height - safeZone.bottom}" width="${size.width}" height="${safeZone.bottom}" fill="black"/>`);
-            }
-            if (safeZone.left > 0) {
-              svgRects.push(`<rect x="0" y="0" width="${safeZone.left}" height="${size.height}" fill="black"/>`);
-            }
-            if (safeZone.right > 0) {
-              svgRects.push(`<rect x="${size.width - safeZone.right}" y="0" width="${safeZone.right}" height="${size.height}" fill="black"/>`);
-            }
-
-            const maskBuffer = await sharp({
-              create: {
-                width: size.width,
-                height: size.height,
-                channels: 3,
-                background: { r: 255, g: 255, b: 255 } // White = areas to inpaint
-              }
-            })
-            .composite([{
-              input: Buffer.from(
-                `<svg width="${size.width}" height="${size.height}">
-                  ${svgRects.join('\n')}
-                </svg>`
-              ),
-              top: 0,
-              left: 0
-            }])
-            .png()
-            .toBuffer();
-
-            // Step 3: Upload both image and mask
-            const tempImagePath = `temp/outpaint-img-${sourceJobId}-${Date.now()}.png`;
-            const tempMaskPath = `temp/outpaint-mask-${sourceJobId}-${Date.now()}.png`;
-
-            const [imgUpload, maskUpload] = await Promise.all([
-              supabase.storage.from('assets').upload(tempImagePath, containedBuffer, {
-                contentType: 'image/png',
-                upsert: true,
-              }),
-              supabase.storage.from('assets').upload(tempMaskPath, maskBuffer, {
-                contentType: 'image/png',
-                upsert: true,
-              })
-            ]);
-
-            if (imgUpload.error) throw new Error(`Image upload failed: ${imgUpload.error.message}`);
-            if (maskUpload.error) throw new Error(`Mask upload failed: ${maskUpload.error.message}`);
-
-            const { data: { publicUrl: imageUrl } } = supabase.storage.from('assets').getPublicUrl(tempImagePath);
-            const { data: { publicUrl: maskUrl } } = supabase.storage.from('assets').getPublicUrl(tempMaskPath);
-
-            // Step 4: Use FLUX Fill Pro for intelligent outpainting
-            console.log('Using FLUX Fill Pro to extend background naturally...');
-            console.log(`Safe zones applied: top=${safeZone.top}px, right=${safeZone.right}px, bottom=${safeZone.bottom}px, left=${safeZone.left}px`);
-            const output = await replicate.run('black-forest-labs/flux-fill-pro', {
+            // Call Luma Reframe
+            const output = await replicate.run('luma/reframe-image', {
               input: {
-                prompt: 'CRITICAL: Only modify the white masked areas - DO NOT change any content in the black masked area. The black mask includes both the center content AND platform safe zones (where UI elements like profile pictures, buttons, captions will appear). The center content MUST remain 100% pixel-perfect identical to the original. Safe zones MUST remain completely clear and unobstructed for platform UI overlays. Only extend and expand the background scene into the white masked empty space. Continue the existing background environment naturally (blurred tropical scenery, palm trees, sunset/beach atmosphere). Match the exact same lighting, colors, blur level, and atmospheric style. Fill only the allowed empty areas with natural background continuation. Preserve all text, graphics, logos, and central content exactly as-is without any modifications whatsoever.',
-                image: imageUrl,
-                mask: maskUrl,
-                steps: 25,
-                guidance: 20, // Lower guidance for less creativity
-                output_format: 'png',
-                safety_tolerance: 6
+                image: sourceImageUrl,  // Use source URL directly
+                aspect_ratio: aspectRatio,
+                prompt: buildReframePrompt(size.safeZone),
+                model: 'photon-flash-1',  // Faster variant
               }
             });
 
             const generatedUrl = Array.isArray(output) ? output[0] : output;
-            if (typeof generatedUrl !== 'string') throw new Error('Invalid output from FLUX Fill Pro');
+            if (typeof generatedUrl !== 'string') {
+              throw new Error('Invalid output from Luma Reframe');
+            }
 
             finalUrl = generatedUrl;
             permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
-
-            // Cleanup temp files
-            await supabase.storage.from('assets').remove([tempImagePath, tempMaskPath]);
           }
 
           // Create job record
@@ -330,7 +258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               source_asset_id: sourceJob.source_asset_id,
               variation_index: sourceJob.variation_index,
               size_config: size,
-              model_id: needsAIExtension ? 'flux-fill-pro' : 'smart-contain',
+              model_id: needsAIExtension ? 'luma-reframe' : 'smart-contain',
               prompt: sourceJob.prompt,
               hypothesis: sourceJob.hypothesis,
               negative_prompt: sourceJob.negative_prompt,
@@ -342,7 +270,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 thumbnailUrl: permanentUrl,
                 metadata: {
                   resizedFrom: sourceJobId,
-                  method: needsAIExtension ? 'flux-fill-pro-outpaint' : 'contain-only',
+                  method: needsAIExtension ? 'luma-reframe' : 'contain-only',
                   usedAI: needsAIExtension,
                   preservesEntireImage: true,
                   safeZonesApplied: needsAIExtension && size.safeZone ? size.safeZone : undefined,
@@ -356,6 +284,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .single();
 
           if (insertError) throw new Error(`Job insert failed: ${insertError.message}`);
+
+          // Create variation record so it appears in main variations grid
+          const { error: variationError } = await supabase
+            .from('variations')
+            .insert({
+              project_id: sourceJob.project_id,
+              job_id: newJob.id,
+              source_asset_id: sourceJob.source_asset_id,
+              variation_index: sourceJob.variation_index,
+              size_config: size,
+              model_id: needsAIExtension ? 'luma-reframe' : 'smart-contain',
+              prompt: sourceJob.prompt,
+              hypothesis: sourceJob.hypothesis,
+              url: permanentUrl,
+              thumbnail_url: permanentUrl,
+              type: 'image',
+              selected: false,
+            });
+
+          if (variationError) {
+            console.error('Failed to create variation record:', variationError);
+            // Continue - job creation succeeded, variation is secondary
+          }
+
           return newJob;
         })
       );
