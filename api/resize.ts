@@ -212,7 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               .png()
               .toBuffer();
 
-            // Step 2: Create mask - white where we need to fill (black bars), black where to preserve (center content)
+            // Step 2: Create mask - white where we need to fill (black bars), black where to preserve (center content + safe zones)
             // Calculate the preserved area dimensions
             const scaleFactorWidth = size.width / sourceWidth;
             const scaleFactorHeight = size.height / sourceHeight;
@@ -229,7 +229,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const maskWidth = Math.min(size.width - maskOffsetX, scaledWidth + (marginPixels * 2));
             const maskHeight = Math.min(size.height - maskOffsetY, scaledHeight + (marginPixels * 2));
 
-            // Create mask: start with white (255 = fill all), then draw black rectangle where content is (0 = preserve)
+            // Get platform safe zones (areas where UI elements appear - must be preserved)
+            const safeZone = size.safeZone || { top: 0, right: 0, bottom: 0, left: 0 };
+
+            // Create mask: start with white (255 = fill all), then draw black rectangles for preserved areas
+            const svgRects = [
+              // Center content area (with safety margin)
+              `<rect x="${maskOffsetX}" y="${maskOffsetY}" width="${maskWidth}" height="${maskHeight}" fill="black"/>`,
+            ];
+
+            // Add safe zone rectangles (platform UI areas that must remain clear)
+            if (safeZone.top > 0) {
+              svgRects.push(`<rect x="0" y="0" width="${size.width}" height="${safeZone.top}" fill="black"/>`);
+            }
+            if (safeZone.bottom > 0) {
+              svgRects.push(`<rect x="0" y="${size.height - safeZone.bottom}" width="${size.width}" height="${safeZone.bottom}" fill="black"/>`);
+            }
+            if (safeZone.left > 0) {
+              svgRects.push(`<rect x="0" y="0" width="${safeZone.left}" height="${size.height}" fill="black"/>`);
+            }
+            if (safeZone.right > 0) {
+              svgRects.push(`<rect x="${size.width - safeZone.right}" y="0" width="${safeZone.right}" height="${size.height}" fill="black"/>`);
+            }
+
             const maskBuffer = await sharp({
               create: {
                 width: size.width,
@@ -241,7 +263,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .composite([{
               input: Buffer.from(
                 `<svg width="${size.width}" height="${size.height}">
-                  <rect x="${maskOffsetX}" y="${maskOffsetY}" width="${maskWidth}" height="${maskHeight}" fill="black"/>
+                  ${svgRects.join('\n')}
                 </svg>`
               ),
               top: 0,
@@ -273,9 +295,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Step 4: Use FLUX Fill Pro for intelligent outpainting
             console.log('Using FLUX Fill Pro to extend background naturally...');
+            console.log(`Safe zones applied: top=${safeZone.top}px, right=${safeZone.right}px, bottom=${safeZone.bottom}px, left=${safeZone.left}px`);
             const output = await replicate.run('black-forest-labs/flux-fill-pro', {
               input: {
-                prompt: 'CRITICAL: Only modify the white masked areas - DO NOT change any content in the black masked area. The center content MUST remain 100% pixel-perfect identical to the original. Only extend and expand the background scene into the white masked empty space. Continue the existing background environment naturally (blurred tropical scenery, palm trees, sunset/beach atmosphere). Match the exact same lighting, colors, blur level, and atmospheric style. Fill only the top and bottom empty areas with natural background continuation. Preserve all text, graphics, logos, and central content exactly as-is without any modifications whatsoever.',
+                prompt: 'CRITICAL: Only modify the white masked areas - DO NOT change any content in the black masked area. The black mask includes both the center content AND platform safe zones (where UI elements like profile pictures, buttons, captions will appear). The center content MUST remain 100% pixel-perfect identical to the original. Safe zones MUST remain completely clear and unobstructed for platform UI overlays. Only extend and expand the background scene into the white masked empty space. Continue the existing background environment naturally (blurred tropical scenery, palm trees, sunset/beach atmosphere). Match the exact same lighting, colors, blur level, and atmospheric style. Fill only the allowed empty areas with natural background continuation. Preserve all text, graphics, logos, and central content exactly as-is without any modifications whatsoever.',
                 image: imageUrl,
                 mask: maskUrl,
                 steps: 25,
@@ -318,6 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   method: needsAIExtension ? 'flux-fill-pro-outpaint' : 'contain-only',
                   usedAI: needsAIExtension,
                   preservesEntireImage: true,
+                  safeZonesApplied: needsAIExtension && size.safeZone ? size.safeZone : undefined,
                   generatedAt: new Date().toISOString(),
                   attemptsRequired: attemptCount,
                 },
