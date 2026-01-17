@@ -302,8 +302,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   generatedUrl = typeof firstItem === 'string' ? firstItem : firstItem.toString();
                   console.log('Extracted from output.output[0]');
                 } else if (typeof outputObj.url === 'function') {
-                  // FileOutput with url() method
-                  generatedUrl = outputObj.url();
+                  // FileOutput with url() method - may return URL object or string
+                  const urlResult = outputObj.url();
+                  generatedUrl = typeof urlResult === 'string' ? urlResult : urlResult.toString();
                   console.log('Extracted from output.url() function');
                 } else if (typeof outputObj.url === 'string') {
                   generatedUrl = outputObj.url;
@@ -319,11 +320,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 throw new Error(`Invalid output from Luma Reframe: ${typeof output}`);
               }
 
-              if (!generatedUrl || typeof generatedUrl !== 'string') {
-                throw new Error(`Failed to extract valid URL string. Got: ${typeof generatedUrl} - ${generatedUrl}`);
+              // Ensure we have a string (convert if needed)
+              if (typeof generatedUrl === 'object' && generatedUrl) {
+                generatedUrl = generatedUrl.toString();
               }
 
-              // Validate it's actually a URL
+              if (!generatedUrl || typeof generatedUrl !== 'string') {
+                throw new Error(`Failed to extract valid URL string. Got: ${typeof generatedUrl} - ${String(generatedUrl)}`);
+              }
+
+              // Validate it's actually a valid URL format
               try {
                 new URL(generatedUrl);
               } catch (urlError) {
