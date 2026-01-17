@@ -107,7 +107,7 @@ export function UploadZone({ asset, onUpload, onRemove, isUploading, uploadProgr
 
   if (isUploading) {
     return (
-      <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 p-8">
+      <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 p-6">
         <div className="w-full max-w-xs space-y-4">
           <div className="flex flex-col items-center gap-2">
             <Upload className="h-8 w-8 animate-pulse text-primary" />
@@ -122,7 +122,7 @@ export function UploadZone({ asset, onUpload, onRemove, isUploading, uploadProgr
 
   return (
     <div
-      className={`flex min-h-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+      className={`flex min-h-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors ${
         isDragOver
           ? "border-primary bg-primary/5"
           : "border-border bg-muted/30 hover:border-muted-foreground/50"

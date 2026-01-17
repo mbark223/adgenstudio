@@ -117,14 +117,14 @@ export function Lightbox({ variation, variations, onClose, onNavigate, onDownloa
         <ChevronRight className="h-8 w-8" />
       </Button>
 
-      <div 
-        className="max-h-[80vh] max-w-[80vw] relative"
+      <div
+        className="max-h-[90vh] max-w-[85vw] relative"
         onClick={(e) => e.stopPropagation()}
       >
         <img
           src={variation.url}
           alt={`Variation ${variation.variationIndex + 1}`}
-          className="max-h-[80vh] max-w-[80vw] object-contain rounded-lg"
+          className="max-h-[90vh] max-w-[85vw] object-contain rounded-lg"
         />
         
         {variation.type === 'video' && (

@@ -61,7 +61,7 @@ export function VariationConfig({
     : variationTypes;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -101,7 +101,7 @@ export function VariationConfig({
           {filteredTypes.map((type) => (
             <label
               key={type.id}
-              className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors hover-elevate ${
+              className={`flex cursor-pointer items-start gap-3 rounded-md border p-2.5 transition-colors hover-elevate ${
                 selectedTypes.includes(type.id as VariationTypeId)
                   ? "border-primary bg-primary/5"
                   : "border-border"

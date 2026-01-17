@@ -30,7 +30,7 @@ export function ModelSelector({ selectedModelId, onModelChange, assetType }: Mod
     : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {(['image', 'video'] as AIModelType[]).map((type) => (
         <div key={type} className="space-y-2">
           <div className="flex items-center gap-1.5">
@@ -43,7 +43,7 @@ export function ModelSelector({ selectedModelId, onModelChange, assetType }: Mod
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             {groupedModels[type].map((model) => {
               const isSelected = selectedModelId === model.id;
 
@@ -52,7 +52,7 @@ export function ModelSelector({ selectedModelId, onModelChange, assetType }: Mod
                   key={model.id}
                   type="button"
                   onClick={() => onModelChange(model.id)}
-                  className={`p-3 rounded-lg border text-left transition-colors ${
+                  className={`p-2.5 rounded-lg border text-left transition-colors ${
                     isSelected
                       ? "border-primary bg-primary/5 ring-1 ring-primary"
                       : "border-border hover:bg-muted/50"

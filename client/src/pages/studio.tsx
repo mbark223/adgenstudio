@@ -66,7 +66,7 @@ export default function Studio() {
   // UI State
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  const [openAccordions, setOpenAccordions] = useState(["upload", "variation", "sizes", "model"]);
+  const [openAccordions, setOpenAccordions] = useState(["upload", "sizes"]);
   const [selectedVariationIds, setSelectedVariationIds] = useState<Set<string>>(new Set());
   const [viewingVariation, setViewingVariation] = useState<Variation | null>(null);
   const [lightboxVariation, setLightboxVariation] = useState<Variation | null>(null);
@@ -707,12 +707,12 @@ export default function Studio() {
                 hasSizes={selectedSizes.length > 0}
                 isGenerating={generateMutation.isPending}
               />
-              <ScrollArea className="flex-1">
+              <ScrollArea className="flex-1 p-2">
                 <Accordion
                   type="multiple"
                   value={openAccordions}
                   onValueChange={setOpenAccordions}
-                  className="w-full"
+                  className="w-full space-y-2"
                 >
                   <AccordionItem value="upload" className="border-b border-border">
                     <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">

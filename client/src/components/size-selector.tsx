@@ -115,7 +115,7 @@ export function SizeSelector({ selectedSizes, onSizesChange, maxSelections = 20 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Output Sizes
@@ -192,7 +192,7 @@ export function SizeSelector({ selectedSizes, onSizesChange, maxSelections = 20 
             {showAllSizes ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 pt-2">
+        <CollapsibleContent className="space-y-3 pt-2">
           {(Object.keys(platformPresets) as PlatformKey[]).map((platformKey) => {
             const platform = platformPresets[platformKey];
             const isFullySelected = isPlatformFullySelected(platformKey);

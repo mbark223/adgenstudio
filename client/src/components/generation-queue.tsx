@@ -142,7 +142,7 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
       </div>
       
       {isExpanded && (
-        <ScrollArea className="max-h-[300px] border-t border-border">
+        <ScrollArea className="max-h-[400px] border-t border-border">
           <div className="divide-y divide-border">
             {jobs.map((job) => {
               const variation = getVariationForJob(job);
@@ -159,12 +159,19 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
                       <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isJobExpanded ? 'rotate-90' : ''}`} />
                     )}
 
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
+                    <div
+                      className="shrink-0 overflow-hidden rounded-md bg-muted"
+                      style={{
+                        width: '64px',
+                        aspectRatio: `${job.sizeConfig.width} / ${job.sizeConfig.height}`,
+                        maxHeight: '96px'
+                      }}
+                    >
                       {job.result?.thumbnailUrl ? (
                         <img
                           src={job.result.thumbnailUrl}
                           alt=""
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
