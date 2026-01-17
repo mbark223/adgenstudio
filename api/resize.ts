@@ -199,10 +199,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             finalUrl = publicUrl;
             permanentUrl = finalUrl;
           } else {
-            // Large difference - use AI to extend background
-            console.log('Large aspect ratio difference, using AI background extension...');
+            // Large difference - use FLUX Fill Pro for proper outpainting
+            console.log('Large aspect ratio difference, using FLUX Fill Pro outpainting...');
 
-            // Step 1: Contain the image (preserves all content)
+            // Step 1: Create canvas with image centered (with black bars)
             const containedBuffer = await image
               .resize(size.width, size.height, {
                 fit: 'contain',
@@ -212,40 +212,80 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               .png()
               .toBuffer();
 
-            // Step 2: Upload contained version as temp input for AI
-            const tempPath = `temp/contained-${sourceJobId}-${Date.now()}.png`;
-            const { error: tempUploadError } = await supabase.storage
-              .from('assets')
-              .upload(tempPath, containedBuffer, {
+            // Step 2: Create mask - white where we need to fill (black bars), black where to preserve (center content)
+            // Calculate the preserved area dimensions
+            const scaleFactorWidth = size.width / sourceWidth;
+            const scaleFactorHeight = size.height / sourceHeight;
+            const scaleFactor = Math.min(scaleFactorWidth, scaleFactorHeight);
+            const scaledWidth = Math.round(sourceWidth * scaleFactor);
+            const scaledHeight = Math.round(sourceHeight * scaleFactor);
+            const offsetX = Math.round((size.width - scaledWidth) / 2);
+            const offsetY = Math.round((size.height - scaledHeight) / 2);
+
+            // Create mask: start with white (255 = fill all), then draw black rectangle where content is (0 = preserve)
+            const maskBuffer = await sharp({
+              create: {
+                width: size.width,
+                height: size.height,
+                channels: 3,
+                background: { r: 255, g: 255, b: 255 } // White = areas to inpaint
+              }
+            })
+            .composite([{
+              input: Buffer.from(
+                `<svg width="${size.width}" height="${size.height}">
+                  <rect x="${offsetX}" y="${offsetY}" width="${scaledWidth}" height="${scaledHeight}" fill="black"/>
+                </svg>`
+              ),
+              top: 0,
+              left: 0
+            }])
+            .png()
+            .toBuffer();
+
+            // Step 3: Upload both image and mask
+            const tempImagePath = `temp/outpaint-img-${sourceJobId}-${Date.now()}.png`;
+            const tempMaskPath = `temp/outpaint-mask-${sourceJobId}-${Date.now()}.png`;
+
+            const [imgUpload, maskUpload] = await Promise.all([
+              supabase.storage.from('assets').upload(tempImagePath, containedBuffer, {
                 contentType: 'image/png',
                 upsert: true,
-              });
+              }),
+              supabase.storage.from('assets').upload(tempMaskPath, maskBuffer, {
+                contentType: 'image/png',
+                upsert: true,
+              })
+            ]);
 
-            if (tempUploadError) throw new Error(`Temp upload failed: ${tempUploadError.message}`);
+            if (imgUpload.error) throw new Error(`Image upload failed: ${imgUpload.error.message}`);
+            if (maskUpload.error) throw new Error(`Mask upload failed: ${maskUpload.error.message}`);
 
-            const { data: { publicUrl: containedUrl } } = supabase.storage
-              .from('assets')
-              .getPublicUrl(tempPath);
+            const { data: { publicUrl: imageUrl } } = supabase.storage.from('assets').getPublicUrl(tempImagePath);
+            const { data: { publicUrl: maskUrl } } = supabase.storage.from('assets').getPublicUrl(tempMaskPath);
 
-            // Step 3: Use AI to extend the background into black areas
-            console.log('Using AI to extend background naturally...');
-            const output = await replicate.run('stability-ai/stable-diffusion-3', {
+            // Step 4: Use FLUX Fill Pro for intelligent outpainting
+            console.log('Using FLUX Fill Pro to extend background naturally...');
+            const output = await replicate.run('black-forest-labs/flux-fill-pro', {
               input: {
-                prompt: 'seamlessly extend and continue the existing background scene, naturally expand the environment, match the exact colors lighting and style, fill empty black areas with natural background extension, maintain the exact same atmosphere and mood',
-                image: containedUrl,
-                prompt_strength: 0.15, // Very low - just extend background, don't change content
-                negative_prompt: 'new objects, altered content, changed composition, different colors, modified lighting, added elements, black bars, solid black areas, empty space, padding',
-                aspect_ratio: aspectRatio,
+                prompt: 'Seamlessly extend and expand the existing background scene. Continue the environment naturally to fill the empty space. Match the exact lighting, colors, style, and atmosphere. Maintain perfect continuity with the original scene.',
+                image: imageUrl,
+                mask: maskUrl,
+                steps: 30,
+                guidance: 30,
                 output_format: 'png',
+                safety_tolerance: 5
               }
             });
 
-            const generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
+            const generatedUrl = Array.isArray(output) ? output[0] : output;
+            if (typeof generatedUrl !== 'string') throw new Error('Invalid output from FLUX Fill Pro');
+
             finalUrl = generatedUrl;
             permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
 
-            // Cleanup temp file
-            await supabase.storage.from('assets').remove([tempPath]);
+            // Cleanup temp files
+            await supabase.storage.from('assets').remove([tempImagePath, tempMaskPath]);
           }
 
           // Create job record
@@ -256,7 +296,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               source_asset_id: sourceJob.source_asset_id,
               variation_index: sourceJob.variation_index,
               size_config: size,
-              model_id: needsAIExtension ? 'stability-sd3-extension' : 'smart-contain',
+              model_id: needsAIExtension ? 'flux-fill-pro' : 'smart-contain',
               prompt: sourceJob.prompt,
               hypothesis: sourceJob.hypothesis,
               negative_prompt: sourceJob.negative_prompt,
@@ -268,7 +308,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 thumbnailUrl: permanentUrl,
                 metadata: {
                   resizedFrom: sourceJobId,
-                  method: needsAIExtension ? 'contain-then-ai-extend' : 'contain-only',
+                  method: needsAIExtension ? 'flux-fill-pro-outpaint' : 'contain-only',
                   usedAI: needsAIExtension,
                   preservesEntireImage: true,
                   generatedAt: new Date().toISOString(),
