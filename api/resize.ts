@@ -5,9 +5,9 @@ import sharp from 'sharp';
 // Temporarily disabled: letterboxing detection causes serverless issues
 // import { detectLetterboxing, cropLetterboxing } from './utils/detectLetterboxing';
 
-// Vercel function config - extended timeout for image processing
+// Vercel function config - extended timeout for AI background extension
 export const config = {
-  maxDuration: 300, // 5 minutes (smart crop should be <10s but allowing buffer)
+  maxDuration: 300, // 5 minutes for AI extension when needed
 };
 
 function getSupabase() {
@@ -139,16 +139,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const aspectRatio = getAspectRatio(size.width, size.height);
           console.log(`Adapting to ${size.width}x${size.height} (${aspectRatio})`);
 
-          // Contain approach - preserve entire image without cropping or stretching
-          // Extract dominant edge color for natural-looking padding
-          console.log('Using contain + intelligent padding (preserves entire image)...');
+          // Hybrid approach: Contain first (preserve all content), then AI extend background
+          console.log('Using contain + AI background extension...');
 
           // Fetch source image
           const response = await fetch(sourceImageUrl);
           if (!response.ok) throw new Error(`Failed to fetch source image: ${response.status}`);
           const sourceBuffer = Buffer.from(await response.arrayBuffer());
 
-          // Get source dimensions and analyze image
+          // Get source dimensions
           const image = sharp(sourceBuffer);
           const metadata = await image.metadata();
           const sourceWidth = metadata.width;
@@ -158,75 +157,96 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             throw new Error('Invalid source image: unable to extract dimensions');
           }
 
-          console.log(`Resizing ${sourceWidth}x${sourceHeight} to fit in ${size.width}x${size.height} (preserving aspect ratio)`);
+          const sourceRatio = sourceWidth / sourceHeight;
+          const targetRatio = size.width / size.height;
 
-          // Extract dominant color from edges for intelligent padding
-          let backgroundColor = { r: 0, g: 0, b: 0 }; // Default to black
-          try {
-            // Sample a strip from the bottom edge to get dominant color
-            const edgeSample = await sharp(sourceBuffer)
-              .extract({
-                left: 0,
-                top: Math.max(0, sourceHeight - 50),
-                width: sourceWidth,
-                height: Math.min(50, sourceHeight)
+          console.log(`Resizing ${sourceWidth}x${sourceHeight} to ${size.width}x${size.height}`);
+
+          // Check if significant padding will be added
+          const ratioDifference = Math.abs(sourceRatio - targetRatio);
+          const needsAIExtension = ratioDifference > 0.1; // More than 10% difference
+
+          let finalUrl: string;
+          let permanentUrl: string;
+          const attemptCount = 1;
+
+          if (!needsAIExtension) {
+            // Small difference - just contain with solid background
+            console.log('Small aspect ratio difference, using simple contain...');
+            const resizedBuffer = await image
+              .resize(size.width, size.height, {
+                fit: 'contain',
+                background: { r: 0, g: 0, b: 0, alpha: 1 },
+                kernel: 'lanczos3'
               })
-              .resize(100, 100) // Downscale for faster processing
-              .raw()
-              .toBuffer({ resolveWithObject: true });
+              .png()
+              .toBuffer();
 
-            // Calculate average color
-            const pixels = edgeSample.data;
-            let r = 0, g = 0, b = 0;
-            const pixelCount = pixels.length / 3;
+            const filePath = `generated/resize-${sourceJobId}-${size.width}x${size.height}-${Date.now()}.png`;
+            const { error: uploadError } = await supabase.storage
+              .from('assets')
+              .upload(filePath, resizedBuffer, {
+                contentType: 'image/png',
+                upsert: true,
+              });
 
-            for (let i = 0; i < pixels.length; i += 3) {
-              r += pixels[i];
-              g += pixels[i + 1];
-              b += pixels[i + 2];
-            }
+            if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-            backgroundColor = {
-              r: Math.round(r / pixelCount),
-              g: Math.round(g / pixelCount),
-              b: Math.round(b / pixelCount)
-            };
+            const { data: { publicUrl } } = supabase.storage
+              .from('assets')
+              .getPublicUrl(filePath);
 
-            console.log(`Detected edge color: rgb(${backgroundColor.r}, ${backgroundColor.g}, ${backgroundColor.b})`);
-          } catch (err) {
-            console.warn('Failed to detect edge color, using black:', err);
-          }
+            finalUrl = publicUrl;
+            permanentUrl = finalUrl;
+          } else {
+            // Large difference - use AI to extend background
+            console.log('Large aspect ratio difference, using AI background extension...');
 
-          // Resize with contain - entire image fits, adds padding as needed
-          const resizedBuffer = await image
-            .resize(size.width, size.height, {
-              fit: 'contain', // Preserve aspect ratio, entire image visible
-              background: backgroundColor,
-              kernel: 'lanczos3' // High quality scaling
-            })
-            .png()
-            .toBuffer();
+            // Step 1: Contain the image (preserves all content)
+            const containedBuffer = await image
+              .resize(size.width, size.height, {
+                fit: 'contain',
+                background: { r: 0, g: 0, b: 0, alpha: 1 },
+                kernel: 'lanczos3'
+              })
+              .png()
+              .toBuffer();
 
-          // Upload directly to storage
-          const filePath = `generated/resize-${sourceJobId}-${size.width}x${size.height}-${Date.now()}.png`;
-          const { error: uploadError } = await supabase.storage
-            .from('assets')
-            .upload(filePath, resizedBuffer, {
-              contentType: 'image/png',
-              upsert: true,
+            // Step 2: Upload contained version as temp input for AI
+            const tempPath = `temp/contained-${sourceJobId}-${Date.now()}.png`;
+            const { error: tempUploadError } = await supabase.storage
+              .from('assets')
+              .upload(tempPath, containedBuffer, {
+                contentType: 'image/png',
+                upsert: true,
+              });
+
+            if (tempUploadError) throw new Error(`Temp upload failed: ${tempUploadError.message}`);
+
+            const { data: { publicUrl: containedUrl } } = supabase.storage
+              .from('assets')
+              .getPublicUrl(tempPath);
+
+            // Step 3: Use AI to extend the background into black areas
+            console.log('Using AI to extend background naturally...');
+            const output = await replicate.run('stability-ai/stable-diffusion-3', {
+              input: {
+                prompt: 'seamlessly extend and continue the existing background scene, naturally expand the environment, match the exact colors lighting and style, fill empty black areas with natural background extension, maintain the exact same atmosphere and mood',
+                image: containedUrl,
+                prompt_strength: 0.15, // Very low - just extend background, don't change content
+                negative_prompt: 'new objects, altered content, changed composition, different colors, modified lighting, added elements, black bars, solid black areas, empty space, padding',
+                aspect_ratio: aspectRatio,
+                output_format: 'png',
+              }
             });
 
-          if (uploadError) {
-            throw new Error(`Storage upload failed: ${uploadError.message}`);
+            const generatedUrl = Array.isArray(output) ? output[0] as string : output as string;
+            finalUrl = generatedUrl;
+            permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
+
+            // Cleanup temp file
+            await supabase.storage.from('assets').remove([tempPath]);
           }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('assets')
-            .getPublicUrl(filePath);
-
-          const finalUrl = publicUrl;
-          const permanentUrl = finalUrl; // Already uploaded to permanent storage
-          const attemptCount = 1;
 
           // Create job record
           const { data: newJob, error: insertError } = await supabase
@@ -236,7 +256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               source_asset_id: sourceJob.source_asset_id,
               variation_index: sourceJob.variation_index,
               size_config: size,
-              model_id: 'smart-contain', // Using contain + intelligent padding (no AI)
+              model_id: needsAIExtension ? 'stability-sd3-extension' : 'smart-contain',
               prompt: sourceJob.prompt,
               hypothesis: sourceJob.hypothesis,
               negative_prompt: sourceJob.negative_prompt,
@@ -248,7 +268,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 thumbnailUrl: permanentUrl,
                 metadata: {
                   resizedFrom: sourceJobId,
-                  method: 'contain-intelligent-padding',
+                  method: needsAIExtension ? 'contain-then-ai-extend' : 'contain-only',
+                  usedAI: needsAIExtension,
                   preservesEntireImage: true,
                   generatedAt: new Date().toISOString(),
                   attemptsRequired: attemptCount,
