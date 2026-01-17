@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import {
   Accordion,
   AccordionContent,
@@ -73,6 +74,7 @@ export default function Studio() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
+  const [keyboardHelpOpen, setKeyboardHelpOpen] = useState(false);
 
   // Smart defaults for new users
   const defaultSizes: SizeConfig[] = [
@@ -109,6 +111,13 @@ export default function Studio() {
   const [promptPreviewOpen, setPromptPreviewOpen] = useState(false);
   const [previewedVariations, setPreviewedVariations] = useState<{ prompt: string; hypothesis: string }[]>([]);
   const [regeneratingIndices, setRegeneratingIndices] = useState<number[]>([]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Fetch variations
   const { data: variations = [], refetch: refetchVariations } = useQuery<Variation[]>({
@@ -262,6 +271,40 @@ export default function Studio() {
           if (allComplete) {
             clearInterval(pollInterval);
             const completed = jobsData.filter((j) => j.status === "completed").length;
+
+            // Browser notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+              const notification = new Notification('Generation Complete! 🎉', {
+                body: `${completed} variation${completed !== 1 ? 's' : ''} ready to view`,
+                icon: '/logo.png',
+                badge: '/logo.png',
+                tag: 'generation-complete',
+                requireInteraction: false,
+                silent: false
+              });
+
+              // Auto-close notification after 5 seconds
+              setTimeout(() => notification.close(), 5000);
+
+              // Play sound alert (browser built-in sound via silent: false)
+            }
+
+            // Flash tab title
+            const originalTitle = document.title;
+            let flash = true;
+            const flashInterval = setInterval(() => {
+              document.title = flash ? '✨ Ready!' : originalTitle;
+              flash = !flash;
+            }, 1000);
+
+            // Stop flashing after 5 seconds or when tab focused
+            const stopFlashing = () => {
+              clearInterval(flashInterval);
+              document.title = originalTitle;
+            };
+            setTimeout(stopFlashing, 5000);
+            window.addEventListener('focus', stopFlashing, { once: true });
+
             toast({
               title: "Generation complete",
               description: `${completed} variation${completed !== 1 ? "s" : ""} generated successfully.`,
@@ -348,8 +391,23 @@ export default function Studio() {
       queryClient.invalidateQueries({ queryKey: ["/api/variations", projectId] });
 
       toast({
-        title: "Sizes created",
+        title: "Sizes created ✓",
         description: `Created ${data.created} resized variation${data.created !== 1 ? 's' : ''}${data.failed > 0 ? ` (${data.failed} failed)` : ''}.`,
+        action: (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Scroll to results section
+              const resultsSection = document.querySelector('[data-results-grid]');
+              if (resultsSection) {
+                resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }}
+          >
+            View
+          </Button>
+        )
       });
 
       // Force a refetch after a short delay to ensure database has committed
@@ -556,6 +614,15 @@ export default function Studio() {
   const handleDeselectAll = useCallback(() => {
     setSelectedVariationIds(new Set());
   }, []);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    'Shift+G': handleGenerate,
+    'Shift+D': () => selectedVariationIds.size > 0 && setExportModalOpen(true),
+    'Shift+A': handleSelectAll,
+    'Escape': handleDeselectAll,
+    'Shift+?': () => setKeyboardHelpOpen(true),
+  });
 
   // Variation update handlers
   const handleStatusChange = useCallback((variationId: string, status: string | undefined) => {
@@ -912,11 +979,18 @@ export default function Studio() {
                 setExportModalOpen(true);
               }}
               onDeleteVariation={(v) => {
-                toast({ title: "Variation deleted" });
+                toast({
+                  title: "Variation deleted",
+                  description: "This action cannot be undone",
+                });
               }}
               onBulkDownload={() => setExportModalOpen(true)}
               onBulkDelete={() => {
-                toast({ title: `${selectedVariationIds.size} variations deleted` });
+                const count = selectedVariationIds.size;
+                toast({
+                  title: `Deleted ${count} variation${count !== 1 ? 's' : ''}`,
+                  description: "This action cannot be undone",
+                });
                 setSelectedVariationIds(new Set());
               }}
               onStatusChange={handleStatusChange}
@@ -1065,6 +1139,45 @@ export default function Studio() {
         selectedSizesCount={selectedSizes.length}
         regeneratingIndices={regeneratingIndices}
       />
+
+      {/* Keyboard Shortcuts Help */}
+      <Dialog open={keyboardHelpOpen} onOpenChange={setKeyboardHelpOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Keyboard Shortcuts</DialogTitle>
+            <DialogDescription>
+              Speed up your workflow with these shortcuts
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-sm">Generate variations</span>
+              <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift+G</kbd>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-sm">Download selected</span>
+              <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift+D</kbd>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-sm">Select all variations</span>
+              <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift+A</kbd>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-sm">Deselect all</span>
+              <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Esc</kbd>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm">Show this help</span>
+              <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift+?</kbd>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setKeyboardHelpOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

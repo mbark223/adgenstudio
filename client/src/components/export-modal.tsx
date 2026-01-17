@@ -16,6 +16,8 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, FileArchive, Copy, Check, Loader2 } from "lucide-react";
 import type { Variation } from "@shared/schema";
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 interface ExportModalProps {
   open: boolean;
@@ -86,6 +88,7 @@ export function ExportModal({
   projectName,
 }: ExportModalProps) {
   const [format, setFormat] = useState<ExportOptions['format']>('original');
+  const [downloadType, setDownloadType] = useState<ExportOptions['downloadType']>('individual');
   const [namingTemplate, setNamingTemplate] = useState('{project}_{platform}_{size}_v{variation}');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -102,7 +105,62 @@ export function ExportModal({
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
+  const handleDownloadAsZip = async () => {
+    setIsExporting(true);
+    setExportProgress(0);
+    setCurrentFile('Preparing ZIP file...');
+
+    try {
+      const zip = new JSZip();
+
+      // Download all images and add to ZIP
+      for (let i = 0; i < variations.length; i++) {
+        const variation = variations[i];
+        const filename = generateFilename(namingTemplate, variation, projectName, format);
+
+        setCurrentFile(filename);
+        setExportProgress(Math.round(((i + 0.5) / variations.length) * 90)); // Reserve 10% for ZIP generation
+
+        const response = await fetch(variation.url);
+        const blob = await response.blob();
+        zip.file(filename, blob);
+      }
+
+      // Generate ZIP file
+      setCurrentFile('Generating ZIP file...');
+      setExportProgress(95);
+
+      const content = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      // Download ZIP
+      const zipFilename = `${projectName.toLowerCase().replace(/\s+/g, '_')}_export_${new Date().toISOString().split('T')[0]}.zip`;
+      saveAs(content, zipFilename);
+
+      setExportProgress(100);
+
+      // Close modal after a brief moment
+      setTimeout(() => {
+        setIsExporting(false);
+        setExportProgress(0);
+        setCurrentFile('');
+        onOpenChange(false);
+      }, 1000);
+    } catch (error) {
+      console.error('ZIP export failed:', error);
+      setIsExporting(false);
+      setExportProgress(0);
+      setCurrentFile('');
+    }
+  };
+
   const handleExport = async () => {
+    if (downloadType === 'zip') {
+      return handleDownloadAsZip();
+    }
     setIsExporting(true);
     setExportProgress(0);
 
@@ -183,8 +241,23 @@ export function ExportModal({
                   <SelectItem value="webp">WebP</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Download Type</Label>
+              <Select value={downloadType} onValueChange={(v) => setDownloadType(v as ExportOptions['downloadType'])}>
+                <SelectTrigger data-testid="select-download-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="individual">Individual Files</SelectItem>
+                  <SelectItem value="zip">ZIP Archive</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                Files will be downloaded individually to your Downloads folder.
+                {downloadType === 'zip'
+                  ? 'All files will be packaged into a single ZIP file.'
+                  : 'Files will be downloaded individually to your Downloads folder.'}
               </p>
             </div>
 

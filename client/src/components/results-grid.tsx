@@ -13,9 +13,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { VariationCard } from "./variation-card";
-import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight, Trophy, Swords, Expand, X, Image, Film, Layers } from "lucide-react";
+import { Download, Trash2, CheckSquare, Square, Grid3X3, List, Upload, Settings, Sparkles, ArrowRight, Trophy, Swords, Expand, X, Image, Film, Layers, Search, ArrowLeftRight } from "lucide-react";
 import type { Variation, SizeConfig, VariationStatus, GenerationJob } from "@shared/schema";
 import { platformPresets } from "@shared/schema";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Download a single file
 async function downloadFile(url: string, filename: string): Promise<void> {
@@ -81,6 +89,11 @@ export function ResultsGrid({
   const [resizeModalOpen, setResizeModalOpen] = useState(false);
   const [selectedSizesForResize, setSelectedSizesForResize] = useState<SizeConfig[]>([]);
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [modelFilter, setModelFilter] = useState<string>('all');
+  const [comparisonMode, setComparisonMode] = useState(false);
+  const [compareVariations, setCompareVariations] = useState<Variation[]>([]);
 
   // Get completed jobs for display when variations aren't loaded
   const completedJobs = jobs.filter(j => j.status === 'completed' && j.result?.url);
@@ -126,11 +139,34 @@ export function ResultsGrid({
     ).values()
   );
 
-  const filteredVariations = sizeFilter
-    ? variations.filter(
-        (v) => `${v.sizeConfig.width}x${v.sizeConfig.height}` === sizeFilter
-      )
-    : variations;
+  // Get unique models
+  const uniqueModels = Array.from(new Set(variations.map(v => v.modelId)));
+
+  // Apply all filters
+  const filteredVariations = variations.filter(v => {
+    // Search by prompt content
+    if (searchQuery && !v.prompt.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+
+    // Filter by size
+    if (sizeFilter && `${v.sizeConfig.width}x${v.sizeConfig.height}` !== sizeFilter) {
+      return false;
+    }
+
+    // Filter by status
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'pending' && v.status) return false;
+      if (statusFilter !== 'pending' && v.status !== statusFilter) return false;
+    }
+
+    // Filter by model
+    if (modelFilter !== 'all' && v.modelId !== modelFilter) {
+      return false;
+    }
+
+    return true;
+  });
 
   const allSelected = filteredVariations.length > 0 &&
     filteredVariations.every((v) => selectedIds.has(v.id));
@@ -138,7 +174,7 @@ export function ResultsGrid({
   // Show completed jobs grid if we have completed jobs but no variations yet
   if (variations.length === 0 && completedJobs.length > 0) {
     return (
-      <div className="flex h-full">
+      <div className="flex h-full" data-results-grid>
         {/* Main Grid */}
         <div className="flex flex-1 flex-col">
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-4 py-3">
@@ -621,7 +657,71 @@ export function ResultsGrid({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-results-grid>
+      {/* Search and Filters Bar */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background px-4 py-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by prompt content..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-8 text-sm"
+            />
+          </div>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="winner">Winners</SelectItem>
+              <SelectItem value="challenger">Challengers</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={modelFilter} onValueChange={setModelFilter}>
+            <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectValue placeholder="All Models" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Models</SelectItem>
+              {uniqueModels.map(model => (
+                <SelectItem key={model} value={model}>{model}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {(searchQuery || statusFilter !== 'all' || modelFilter !== 'all' || sizeFilter) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('all');
+                setModelFilter('all');
+                setSizeFilter(null);
+              }}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+
+        {/* Results count */}
+        {filteredVariations.length !== variations.length && (
+          <p className="text-sm text-muted-foreground">
+            Showing {filteredVariations.length} of {variations.length} variations
+          </p>
+        )}
+      </div>
+
+      {/* Size Filters and Actions Bar */}
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -702,6 +802,22 @@ export function ResultsGrid({
               <Badge variant="secondary" className="text-xs">
                 {selectedIds.size} selected
               </Badge>
+              {selectedIds.size >= 2 && selectedIds.size <= 4 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => {
+                    const selected = filteredVariations.filter(v => selectedIds.has(v.id));
+                    setCompareVariations(selected);
+                    setComparisonMode(true);
+                  }}
+                  data-testid="button-compare"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" />
+                  Compare ({selectedIds.size})
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -749,6 +865,63 @@ export function ResultsGrid({
           ))}
         </div>
       </ScrollArea>
+
+      {/* Comparison Dialog */}
+      <Dialog open={comparisonMode} onOpenChange={setComparisonMode}>
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Compare Variations</DialogTitle>
+            <DialogDescription>
+              Side-by-side comparison of {compareVariations.length} selected variations
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className={`grid gap-4 ${compareVariations.length === 2 ? 'grid-cols-2' : compareVariations.length === 3 ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`}>
+            {compareVariations.map(v => (
+              <div key={v.id} className="space-y-3 border rounded-lg p-3">
+                <img
+                  src={v.url}
+                  alt={`V${v.variationIndex + 1}`}
+                  className="w-full rounded-lg border"
+                />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-sm">Variation {v.variationIndex + 1}</p>
+                    {v.status && (
+                      <Badge variant={v.status === 'winner' ? 'default' : 'secondary'} className="text-xs">
+                        {v.status === 'winner' && <Trophy className="h-3 w-3 mr-1" />}
+                        {v.status === 'challenger' && <Swords className="h-3 w-3 mr-1" />}
+                        {v.status}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <p className="font-mono">{v.sizeConfig.width}x{v.sizeConfig.height}</p>
+                    <p>{v.sizeConfig.platform} • {v.sizeConfig.placement}</p>
+                    <p>Model: {v.modelId}</p>
+                    <p className="font-mono text-[10px]">{v.sizeConfig.name}</p>
+                  </div>
+
+                  {v.hypothesis && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium mb-1">Hypothesis</p>
+                      <p className="text-xs text-muted-foreground italic">{v.hypothesis}</p>
+                    </div>
+                  )}
+
+                  {v.feedback && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium mb-1">Feedback</p>
+                      <p className="text-xs text-muted-foreground">{v.feedback}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

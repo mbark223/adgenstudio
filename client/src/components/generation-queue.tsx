@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { X, RotateCcw, Clock, ChevronUp, ChevronDown, ChevronRight, Trophy, Swords, MessageSquare } from "lucide-react";
+import { X, RotateCcw, Clock, ChevronUp, ChevronDown, ChevronRight, Trophy, Swords, MessageSquare, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import type { GenerationJob, Variation, VariationStatus } from "@shared/schema";
 import { useState } from "react";
 
@@ -17,6 +17,15 @@ interface GenerationQueueProps {
   onFeedbackChange?: (variationId: string, feedback: string) => void;
 }
 
+// Model-specific time estimates (in seconds)
+const MODEL_ESTIMATES: Record<string, number> = {
+  'nanobanana': 15,
+  'prunaai': 3,
+  'veo-3': 90,
+  'sora': 180,
+  'luma-reframe': 20,
+};
+
 const statusColors: Record<GenerationJob['status'], string> = {
   queued: "bg-muted text-muted-foreground",
   processing: "bg-blue-500/10 text-blue-500",
@@ -29,6 +38,20 @@ const statusLabels: Record<GenerationJob['status'], string> = {
   processing: "Processing",
   completed: "Completed",
   failed: "Failed",
+};
+
+// Status icon helper
+const StatusIcon = ({ status }: { status: GenerationJob['status'] }) => {
+  switch (status) {
+    case 'queued':
+      return <Clock className="h-4 w-4 text-muted-foreground" />;
+    case 'processing':
+      return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+    case 'completed':
+      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case 'failed':
+      return <XCircle className="h-4 w-4 text-destructive" />;
+  }
 };
 
 export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob, onCancelAll, onStatusChange, onFeedbackChange }: GenerationQueueProps) {
@@ -66,11 +89,14 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
 
   const activeJobs = jobs.filter((j) => j.status !== 'completed');
   const estimatedTime = activeJobs.reduce((acc, job) => {
+    const estimate = MODEL_ESTIMATES[job.modelId] || 30;
+
     if (job.status === 'processing') {
-      return acc + (100 - job.progress) * 0.5;
+      // Adjust by progress percentage
+      return acc + (estimate * ((100 - job.progress) / 100));
     }
     if (job.status === 'queued') {
-      return acc + 50;
+      return acc + estimate;
     }
     return acc;
   }, 0);
@@ -110,7 +136,11 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
           {estimatedTime > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              <span>~{Math.ceil(estimatedTime)}s remaining</span>
+              <span>
+                ~{estimatedTime < 60
+                  ? `${Math.ceil(estimatedTime)}s`
+                  : `${Math.ceil(estimatedTime / 60)}m`} remaining
+              </span>
             </div>
           )}
           
@@ -204,6 +234,7 @@ export function GenerationQueue({ jobs, variations = [], onCancelJob, onRetryJob
                         )}
                       </div>
                       <div className="mt-1 flex items-center gap-2">
+                        <StatusIcon status={job.status} />
                         <Badge className={`text-[10px] ${statusColors[job.status]}`}>
                           {statusLabels[job.status]}
                         </Badge>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Expand, Trash2, Play, Image, Film, Trophy, Swords } from "lucide-react";
+import { Download, Expand, Trash2, Play, Image, Film, Trophy, Swords, Loader2 } from "lucide-react";
 import type { Variation, VariationStatus } from "@shared/schema";
 
 interface VariationCardProps {
@@ -57,15 +57,20 @@ export function VariationCard({
         onClick={onView}
       >
         {!imageLoaded && (
-          <div className="absolute inset-0 animate-pulse bg-muted" />
+          <div className="absolute inset-0 bg-muted animate-pulse">
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          </div>
         )}
         <img
           src={variation.thumbnailUrl || variation.url}
           alt={`Variation ${variation.variationIndex + 1}`}
-          className={`h-full w-full object-contain transition-all duration-200 ${
+          className={`h-full w-full object-contain transition-opacity duration-300 ${
             imageLoaded ? "opacity-100" : "opacity-0"
           } group-hover:scale-105`}
           onLoad={() => setImageLoaded(true)}
+          onError={() => setImageLoaded(true)}
         />
 
         {/* Enlarge hint overlay */}
