@@ -112,6 +112,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         targetSizes: SizeConfig[];
       };
 
+      console.log('=== Resize Request ===');
+      console.log('Source Job ID:', sourceJobId);
+      console.log('Target Sizes:', targetSizes.map(s => `${s.width}x${s.height} (${s.platform}/${s.name})`));
+
       if (!sourceJobId || !targetSizes || targetSizes.length === 0) {
         return res.status(400).json({ error: 'sourceJobId and targetSizes required' });
       }
@@ -370,8 +374,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
 
+      console.log(`Resize completed: ${successfulJobs.length} succeeded, ${failedCount} failed`);
+      console.log('Created job IDs:', successfulJobs.map(j => j.id));
+      console.log('Project ID:', sourceJob.project_id);
+
+      // Convert snake_case to camelCase for frontend compatibility
+      const formattedJobs = successfulJobs.map(j => ({
+        id: j.id,
+        projectId: j.project_id,
+        sourceAssetId: j.source_asset_id,
+        variationIndex: j.variation_index,
+        sizeConfig: j.size_config,
+        modelId: j.model_id,
+        prompt: j.prompt,
+        hypothesis: j.hypothesis,
+        negativePrompt: j.negative_prompt,
+        variationTypes: j.variation_types,
+        status: j.status,
+        testStatus: j.test_status,
+        progress: j.progress,
+        result: j.result,
+        error: j.error,
+        createdAt: j.created_at,
+        completedAt: j.completed_at,
+      }));
+
       return res.status(201).json({
-        jobs: successfulJobs,
+        jobs: formattedJobs,
         created: successfulJobs.length,
         failed: failedCount,
       });

@@ -327,17 +327,26 @@ export default function Studio() {
       });
       return response.json();
     },
-    onSuccess: (data: { created: number; failed: number }) => {
+    onSuccess: (data: { jobs: GenerationJob[]; created: number; failed: number }) => {
+      console.log('Resize completed:', data);
+      // Optimistically add the new jobs to the cache
+      if (data.jobs && data.jobs.length > 0) {
+        queryClient.setQueryData(["/api/jobs", projectId], (oldJobs: GenerationJob[] = []) => {
+          return [...oldJobs, ...data.jobs];
+        });
+      }
+      // Also invalidate to ensure we have the latest data
       queryClient.invalidateQueries({ queryKey: ["/api/jobs", projectId] });
       toast({
         title: "Sizes created",
-        description: `Created ${data.created} resized variation${data.created !== 1 ? 's' : ''}.`,
+        description: `Created ${data.created} resized variation${data.created !== 1 ? 's' : ''}${data.failed > 0 ? ` (${data.failed} failed)` : ''}.`,
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Resize error:', error);
       toast({
         title: "Resize failed",
-        description: "There was an error creating resized versions.",
+        description: error?.message || "There was an error creating resized versions.",
         variant: "destructive",
       });
     },
