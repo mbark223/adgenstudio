@@ -303,9 +303,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
               console.log('Extracted URL:', generatedUrl);
 
-              finalUrl = generatedUrl;
-              permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
-              console.log('Uploaded to storage:', permanentUrl);
+              // Download Luma's reframed image
+              const lumaResponse = await fetch(generatedUrl);
+              if (!lumaResponse.ok) throw new Error('Failed to fetch Luma output');
+              const lumaBuffer = Buffer.from(await lumaResponse.arrayBuffer());
+
+              // Composite original disclaimer area on top to preserve legal text
+              console.log('Compositing original disclaimer area...');
+
+              // Calculate where disclaimer area should be in the new size
+              // Assume disclaimer is bottom 15% of original image
+              const disclaimerHeightPercent = 0.15;
+              const originalDisclaimerHeight = Math.round(sourceHeight * disclaimerHeightPercent);
+
+              // Extract disclaimer from original image
+              const disclaimerBuffer = await sharp(sourceBuffer)
+                .extract({
+                  left: 0,
+                  top: sourceHeight - originalDisclaimerHeight,
+                  width: sourceWidth,
+                  height: originalDisclaimerHeight
+                })
+                .resize(size.width, Math.round(size.height * disclaimerHeightPercent), {
+                  fit: 'fill',
+                  kernel: 'lanczos3'
+                })
+                .toBuffer();
+
+              // Composite disclaimer onto Luma output at bottom
+              const finalBuffer = await sharp(lumaBuffer)
+                .composite([{
+                  input: disclaimerBuffer,
+                  top: size.height - Math.round(size.height * disclaimerHeightPercent),
+                  left: 0
+                }])
+                .png()
+                .toBuffer();
+
+              // Upload final composited image
+              const compositePath = `resized/${sourceJobId}-${size.width}x${size.height}-${Date.now()}.png`;
+              const { error: uploadError } = await supabase.storage
+                .from('assets')
+                .upload(compositePath, finalBuffer, {
+                  contentType: 'image/png',
+                  upsert: true
+                });
+
+              if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+              const { data: { publicUrl: compositeUrl } } = supabase.storage
+                .from('assets')
+                .getPublicUrl(compositePath);
+
+              finalUrl = compositeUrl;
+              permanentUrl = finalUrl;
+              console.log('Composited and uploaded to storage:', permanentUrl);
             } catch (reframeError: any) {
               console.error('Luma Reframe error:', reframeError);
               console.error('Luma error message:', reframeError?.message);
@@ -337,9 +389,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 thumbnailUrl: permanentUrl,
                 metadata: {
                   resizedFrom: sourceJobId,
-                  method: needsAIExtension ? 'luma-reframe' : 'contain-only',
+                  method: needsAIExtension ? 'luma-reframe-hybrid' : 'contain-only',
                   usedAI: needsAIExtension,
                   preservesEntireImage: true,
+                  disclaimerPreserved: needsAIExtension, // Bottom 15% composited from original
                   safeZonesApplied: needsAIExtension && size.safeZone ? size.safeZone : undefined,
                   generatedAt: new Date().toISOString(),
                   attemptsRequired: attemptCount,
