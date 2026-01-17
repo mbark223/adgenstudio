@@ -360,9 +360,13 @@ export default function Studio() {
     },
     onError: (error: any) => {
       console.error('Resize error:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+
+      const errorMessage = error?.message || error?.details || error?.toString() || "There was an error creating resized versions.";
+
       toast({
         title: "Resize failed",
-        description: error?.message || "There was an error creating resized versions.",
+        description: errorMessage,
         variant: "destructive",
       });
     },

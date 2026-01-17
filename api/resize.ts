@@ -249,23 +249,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const safeZone = size.safeZone || { top: 0, right: 0, bottom: 0, left: 0 };
             console.log(`Safe zones: top=${safeZone.top}px, right=${safeZone.right}px, bottom=${safeZone.bottom}px, left=${safeZone.left}px`);
 
-            // Call Luma Reframe
-            const output = await replicate.run('luma/reframe-image', {
-              input: {
-                image: sourceImageUrl,  // Use source URL directly
-                aspect_ratio: aspectRatio,
-                prompt: buildReframePrompt(size.safeZone),
-                model: 'photon-flash-1',  // Faster variant
-              }
+            const reframePrompt = buildReframePrompt(size.safeZone);
+            console.log('Luma Reframe input:', {
+              image: sourceImageUrl,
+              aspect_ratio: aspectRatio,
+              prompt: reframePrompt,
+              model: 'photon-flash-1'
             });
 
-            const generatedUrl = Array.isArray(output) ? output[0] : output;
-            if (typeof generatedUrl !== 'string') {
-              throw new Error('Invalid output from Luma Reframe');
-            }
+            // Call Luma Reframe
+            try {
+              const output = await replicate.run('luma/reframe-image', {
+                input: {
+                  image: sourceImageUrl,  // Use source URL directly
+                  aspect_ratio: aspectRatio,
+                  prompt: reframePrompt,
+                  model: 'photon-flash-1',  // Faster variant
+                }
+              });
 
-            finalUrl = generatedUrl;
-            permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
+              console.log('Luma Reframe output:', output);
+
+              const generatedUrl = Array.isArray(output) ? output[0] : output;
+              if (typeof generatedUrl !== 'string') {
+                throw new Error(`Invalid output from Luma Reframe: ${typeof generatedUrl}`);
+              }
+
+              finalUrl = generatedUrl;
+              permanentUrl = await uploadToStorage(finalUrl, sourceJobId, size);
+              console.log('Uploaded to storage:', permanentUrl);
+            } catch (reframeError: any) {
+              console.error('Luma Reframe error:', reframeError);
+              console.error('Luma error message:', reframeError?.message);
+              console.error('Luma error details:', JSON.stringify(reframeError, null, 2));
+              throw new Error(`Luma Reframe failed: ${reframeError.message || reframeError.toString()}`);
+            }
           }
 
           // Assign unique variation index for this resized variation
@@ -347,16 +365,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const failedCount = results.filter((r) => r.status === 'rejected').length;
 
-      // Log any failures
-      results.forEach((r, i) => {
-        if (r.status === 'rejected') {
-          console.error(`Failed to outpaint size ${i}:`, r.reason);
-        }
+      // Log any failures with detailed error info
+      const failedResults = results
+        .map((r, i) => ({ result: r, index: i }))
+        .filter(({ result }) => result.status === 'rejected');
+
+      failedResults.forEach(({ result, index }) => {
+        console.error(`Failed to resize size ${index}:`, result.reason);
+        console.error('Error message:', result.reason?.message || 'Unknown error');
+        console.error('Error stack:', result.reason?.stack || 'No stack trace');
       });
 
       console.log(`Resize completed: ${successfulJobs.length} succeeded, ${failedCount} failed`);
       console.log('Created job IDs:', successfulJobs.map(j => j.id));
       console.log('Project ID:', sourceJob.project_id);
+
+      // If all failed, return detailed error
+      if (successfulJobs.length === 0 && failedCount > 0) {
+        const firstError = failedResults[0]?.result.reason;
+        console.error('All resizes failed. First error:', firstError);
+        return res.status(500).json({
+          error: 'All resize operations failed',
+          details: firstError?.message || firstError?.toString() || 'Unknown error',
+          failedCount
+        });
+      }
 
       // Convert snake_case to camelCase for frontend compatibility
       const formattedJobs = successfulJobs.map(j => ({
