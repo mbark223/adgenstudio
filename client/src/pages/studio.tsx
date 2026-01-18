@@ -34,7 +34,6 @@ import { Lightbox } from "@/components/lightbox";
 import { ExportModal } from "@/components/export-modal";
 import { PromptPreviewModal } from "@/components/prompt-preview-modal";
 import { WorkflowStepper } from "@/components/workflow-stepper";
-import { VideoCards } from "@/components/video-cards";
 import { availableModels } from "@shared/schema";
 import {
   Sparkles,
@@ -695,6 +694,13 @@ export default function Studio() {
             <Sparkles className="h-5 w-5 text-primary" />
             <span className="text-lg font-semibold">AdGen Studio</span>
           </div>
+          <a
+            href="/video"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-muted"
+          >
+            <Play className="h-4 w-4" />
+            Video Generator
+          </a>
         </div>
 
         <div className="flex items-center gap-2">
@@ -883,34 +889,6 @@ export default function Studio() {
                         onModelChange={setSelectedModelId}
                         assetType={sourceAsset?.type || null}
                       />
-
-                      {/* Show video cards for video/i2v models */}
-                      {selectedModelId && availableModels.find(m => m.id === selectedModelId)?.type !== 'image' && (
-                        <VideoCards
-                          introCard={introCard}
-                          outroCard={outroCard}
-                          onIntroUpload={async (file) => {
-                            const formData = new FormData();
-                            formData.append("file", file);
-                            const response = await fetch("/api/upload", { method: "POST", body: formData });
-                            if (response.ok) {
-                              const asset = await response.json();
-                              setIntroCard(asset);
-                            }
-                          }}
-                          onOutroUpload={async (file) => {
-                            const formData = new FormData();
-                            formData.append("file", file);
-                            const response = await fetch("/api/upload", { method: "POST", body: formData });
-                            if (response.ok) {
-                              const asset = await response.json();
-                              setOutroCard(asset);
-                            }
-                          }}
-                          onRemoveIntro={() => setIntroCard(null)}
-                          onRemoveOutro={() => setOutroCard(null)}
-                        />
-                      )}
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Expand, Trash2, Play, Image, Film, Trophy, Swords, Loader2 } from "lucide-react";
+import { Download, Expand, Trash2, Image, Trophy, Swords, Loader2 } from "lucide-react";
 import type { Variation, VariationStatus } from "@shared/schema";
 
 interface VariationCardProps {
@@ -81,14 +81,6 @@ export function VariationCard({
           </div>
         </div>
         
-        {variation.type === 'video' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
-              <Play className="h-5 w-5 text-white" fill="white" />
-            </div>
-          </div>
-        )}
-
         <div
           className={`absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/60 via-transparent to-transparent p-3 transition-opacity z-10 ${
             isHovered ? "opacity-100" : "opacity-0"
@@ -97,11 +89,7 @@ export function VariationCard({
         >
           <div className="flex justify-end">
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-background/80 backdrop-blur-sm">
-              {variation.type === 'image' ? (
-                <Image className="h-3 w-3 mr-1" />
-              ) : (
-                <Film className="h-3 w-3 mr-1" />
-              )}
+              <Image className="h-3 w-3 mr-1" />
               {variation.sizeConfig.width}x{variation.sizeConfig.height}
             </Badge>
           </div>

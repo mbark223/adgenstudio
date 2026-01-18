@@ -1,5 +1,5 @@
 import { availableModels, type AIModelId, type AIModelType } from "@shared/schema";
-import { Clock, Video, Image, Sparkles } from "lucide-react";
+import { Clock, Image, Sparkles } from "lucide-react";
 
 interface ModelSelectorProps {
   selectedModelId: AIModelId | null;
@@ -9,29 +9,25 @@ interface ModelSelectorProps {
 
 const modelTypeIcons: Record<AIModelType, React.ReactNode> = {
   image: <Image className="h-4 w-4" />,
-  video: <Video className="h-4 w-4" />,
+  video: <Image className="h-4 w-4" />, // Hidden but kept for type compatibility
 };
 
 const modelTypeLabels: Record<AIModelType, string> = {
   image: 'Image',
-  video: 'Video',
+  video: 'Video', // Hidden but kept for type compatibility
 };
 
 export function ModelSelector({ selectedModelId, onModelChange, assetType }: ModelSelectorProps) {
   const groupedModels = {
     image: availableModels.filter((m) => m.type === 'image'),
-    video: availableModels.filter((m) => m.type === 'video'),
+    // video models hidden
   };
 
-  const recommendedType: AIModelType | null = assetType === 'image'
-    ? 'image'
-    : assetType === 'video'
-    ? 'video'
-    : null;
+  const recommendedType: AIModelType | null = 'image'; // Always recommend image models
 
   return (
     <div className="space-y-3">
-      {(['image', 'video'] as AIModelType[]).map((type) => (
+      {(['image'] as AIModelType[]).map((type) => (
         <div key={type} className="space-y-2">
           <div className="flex items-center gap-1.5">
             {modelTypeIcons[type]}

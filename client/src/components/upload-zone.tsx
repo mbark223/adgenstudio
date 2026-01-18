@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Upload, Image, Film, X, FileImage, FileVideo } from "lucide-react";
+import { Upload, Image, X, FileImage } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { Asset } from "@shared/schema";
@@ -68,17 +68,11 @@ export function UploadZone({ asset, onUpload, onRemove, isUploading, uploadProgr
         
         <div className="flex gap-4">
           <div className="relative aspect-video w-32 overflow-hidden rounded-md bg-muted">
-            {asset.type === 'image' ? (
-              <img
-                src={asset.url}
-                alt={asset.filename}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <Film className="h-8 w-8 text-muted-foreground" />
-              </div>
-            )}
+            <img
+              src={asset.url}
+              alt={asset.filename}
+              className="h-full w-full object-cover"
+            />
           </div>
           
           <div className="flex flex-col justify-center gap-1">
@@ -86,17 +80,10 @@ export function UploadZone({ asset, onUpload, onRemove, isUploading, uploadProgr
               {asset.filename}
             </p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {asset.type === 'image' ? (
-                <FileImage className="h-3 w-3" />
-              ) : (
-                <FileVideo className="h-3 w-3" />
-              )}
+              <FileImage className="h-3 w-3" />
               <span>{formatFileSize(asset.size)}</span>
               {asset.width && asset.height && (
                 <span className="font-mono">{asset.width}x{asset.height}</span>
-              )}
-              {asset.duration && (
-                <span>{asset.duration.toFixed(1)}s</span>
               )}
             </div>
           </div>
@@ -137,9 +124,6 @@ export function UploadZone({ asset, onUpload, onRemove, isUploading, uploadProgr
           <div className="rounded-lg bg-primary/10 p-3">
             <Image className="h-6 w-6 text-primary" />
           </div>
-          <div className="rounded-lg bg-primary/10 p-3">
-            <Film className="h-6 w-6 text-primary" />
-          </div>
         </div>
         
         <div className="text-center">
@@ -155,7 +139,7 @@ export function UploadZone({ asset, onUpload, onRemove, isUploading, uploadProgr
           <input
             type="file"
             className="hidden"
-            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+            accept="image/jpeg,image/png,image/webp"
             onChange={handleFileSelect}
             data-testid="input-file-upload"
           />
@@ -166,10 +150,7 @@ export function UploadZone({ asset, onUpload, onRemove, isUploading, uploadProgr
         
         <div className="space-y-1 text-center">
           <p className="text-xs text-muted-foreground">
-            Images: JPG, PNG, WebP (max 20MB)
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Videos: MP4, MOV, WebM (max 500MB, 60s)
+            JPG, PNG, or WebP (max 20MB)
           </p>
         </div>
       </div>

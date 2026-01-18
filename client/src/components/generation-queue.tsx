@@ -21,8 +21,6 @@ interface GenerationQueueProps {
 const MODEL_ESTIMATES: Record<string, number> = {
   'nanobanana': 15,
   'prunaai': 3,
-  'veo-3': 90,
-  'sora': 180,
   'luma-reframe': 20,
 };
 

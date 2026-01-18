@@ -84,26 +84,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Validate MIME type
       const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
-      const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+      const allowedTypes = allowedImageTypes; // Only images
 
       if (!allowedTypes.includes(mimeType)) {
         return res.status(400).json({
           error: 'Invalid file type',
-          message: `Only JPG, PNG, WebP images and MP4, MOV, WebM videos are allowed. Received: ${mimeType}`
+          message: `Only JPG, PNG, and WebP images are allowed. Received: ${mimeType}`
         });
       }
 
       // Validate file size
-      const isVideo = mimeType.startsWith('video/');
-      const maxSize = isVideo ? 500 * 1024 * 1024 : 20 * 1024 * 1024; // 500MB for videos, 20MB for images
+      const maxSize = 20 * 1024 * 1024; // 20MB for images
 
       if (file.length > maxSize) {
-        const maxSizeMB = isVideo ? 500 : 20;
         const actualSizeMB = (file.length / (1024 * 1024)).toFixed(2);
         return res.status(400).json({
           error: 'File too large',
-          message: `${isVideo ? 'Videos' : 'Images'} must be under ${maxSizeMB}MB. Your file is ${actualSizeMB}MB`
+          message: `Images must be under 20MB. Your file is ${actualSizeMB}MB`
         });
       }
 
@@ -130,8 +127,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from('assets')
         .getPublicUrl(filePath);
 
-      // Determine asset type (isVideo already defined above)
-      const assetType = isVideo ? 'video' : 'image';
+      // Determine asset type
+      const assetType = 'image'; // Always image
 
       // Save asset record to database
       // Note: width/height are placeholder values. For accurate video metadata,

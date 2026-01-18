@@ -416,6 +416,29 @@ export type InsertGenerationJob = z.infer<typeof insertGenerationJobSchema>;
 export const insertVariationSchema = variationSchema.omit({ id: true, createdAt: true });
 export type InsertVariation = z.infer<typeof insertVariationSchema>;
 
+// Video job schema (for Veo 3.1 video generation)
+export const videoJobSchema = z.object({
+  id: z.string(),
+  jobId: z.string(),
+  firstFrameUrl: z.string(),
+  lastFrameUrl: z.string(),
+  prompt: z.string().optional(),
+  duration: z.number().default(6),
+  aspectRatio: z.enum(['16:9', '9:16']).default('16:9'),
+  status: z.enum(['processing', 'completed', 'failed']),
+  videoUrl: z.string().optional(),
+  thumbnailUrl: z.string().optional(),
+  errorMessage: z.string().optional(),
+  progress: z.number().optional(),
+  createdAt: z.string(),
+  completedAt: z.string().optional(),
+});
+
+export type VideoJob = z.infer<typeof videoJobSchema>;
+
+export const insertVideoJobSchema = videoJobSchema.omit({ id: true, createdAt: true });
+export type InsertVideoJob = z.infer<typeof insertVideoJobSchema>;
+
 // User schema (kept for compatibility)
 export const userSchema = z.object({
   id: z.string(),

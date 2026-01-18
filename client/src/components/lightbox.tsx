@@ -2,7 +2,7 @@ import { useEffect, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { X, ChevronLeft, ChevronRight, Download, Image, Film, Sparkles, MessageSquare } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Download, Image, Sparkles, MessageSquare } from "lucide-react";
 import type { Variation } from "@shared/schema";
 
 interface LightboxProps {
@@ -126,13 +126,6 @@ export function Lightbox({ variation, variations, onClose, onNavigate, onDownloa
           alt={`Variation ${variation.variationIndex + 1}`}
           className="max-h-[90vh] max-w-[85vw] object-contain rounded-lg"
         />
-        
-        {variation.type === 'video' && (
-          <Badge className="absolute top-3 right-3 gap-1">
-            <Film className="h-3 w-3" />
-            Video
-          </Badge>
-        )}
       </div>
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3">
@@ -201,12 +194,8 @@ export function Lightbox({ variation, variations, onClose, onNavigate, onDownloa
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-sm px-4 py-2">
             <Badge variant="secondary" className="gap-1">
-              {variation.type === 'image' ? (
-                <Image className="h-3 w-3" />
-              ) : (
-                <Film className="h-3 w-3" />
-              )}
-              {variation.type}
+              <Image className="h-3 w-3" />
+              Image
             </Badge>
             <span className="text-sm text-white">
               {variation.sizeConfig.platform} • {variation.sizeConfig.name}

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Download, Sparkles, X, Image, Film, Clock, Cpu, MessageSquare, Trophy, Swords, Grid3X3 } from "lucide-react";
+import { Download, Sparkles, X, Image, Clock, Cpu, MessageSquare, Trophy, Swords, Grid3X3 } from "lucide-react";
 import type { Variation, VariationStatus } from "@shared/schema";
 import { SafeZoneOverlay } from "./safe-zone-overlay";
 
@@ -15,8 +15,6 @@ import { SafeZoneOverlay } from "./safe-zone-overlay";
 const modelDisplayNames: Record<string, string> = {
   'nanobanana': 'Quick Create',
   'prunaai': 'Pro Create',
-  'veo-3': 'Quick Video',
-  'sora': 'Pro Video',
 };
 
 interface DetailPanelProps {
@@ -102,12 +100,6 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine, onFeedba
                   visible={showSafeZones}
                 />
               )}
-              {variation.type === 'video' && (
-                <Badge className="absolute top-2 right-2 gap-1">
-                <Film className="h-3 w-3" />
-                Video
-              </Badge>
-            )}
           </div>
         </div>
 
@@ -146,12 +138,8 @@ export function DetailPanel({ variation, onClose, onDownload, onRefine, onFeedba
               <div className="flex justify-between py-1.5 border-b border-border">
                 <span className="text-muted-foreground">Type</span>
                 <Badge variant="secondary" className="gap-1 text-xs">
-                  {variation.type === 'image' ? (
-                    <Image className="h-3 w-3" />
-                  ) : (
-                    <Film className="h-3 w-3" />
-                  )}
-                  {variation.type}
+                  <Image className="h-3 w-3" />
+                  Image
                 </Badge>
               </div>
               <div className="flex justify-between py-1.5">

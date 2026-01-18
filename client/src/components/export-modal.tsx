@@ -56,7 +56,7 @@ function generateFilename(
     .replace('{variation}', String(variation.variationIndex + 1).padStart(2, '0'))
     .replace('{date}', new Date().toISOString().split('T')[0]);
 
-  const ext = format === 'original' ? (variation.type === 'video' ? 'mp4' : 'png') : format;
+  const ext = format === 'original' ? 'png' : format;
   return `${filename}.${ext}`;
 }
 
