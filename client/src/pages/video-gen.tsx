@@ -616,18 +616,18 @@ export default function VideoGen() {
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      ~$0.36 • 70s
+                      ~70s
                     </div>
                   </button>
                 );
               })}
             </div>
 
-            {/* Cost Estimate */}
+            {/* Time Estimate */}
             {selectedResizeSizes.length > 0 && (
               <Card className="p-3 bg-muted">
                 <p className="text-sm">
-                  <strong>Estimated:</strong> ${(selectedResizeSizes.length * 0.36).toFixed(2)} • ~{Math.round(selectedResizeSizes.length * 70)} seconds
+                  <strong>Estimated processing time:</strong> ~{Math.round(selectedResizeSizes.length * 70)} seconds
                 </p>
               </Card>
             )}
