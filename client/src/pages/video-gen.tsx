@@ -6,8 +6,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
-import { Upload, Play, Download, Loader2, X, AlertCircle, ArrowLeft, FileVideo } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Upload, Play, Download, Loader2, X, AlertCircle, ArrowLeft, FileVideo, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { videoSizePresets } from '@/../../shared/schema';
 
 interface VideoJob {
   jobId: string;
@@ -18,6 +21,10 @@ interface VideoJob {
   progress?: number;
   message?: string;
   note?: string;
+  aspectRatio?: string;
+  resizedFrom?: string;
+  targetPlatform?: string;
+  targetSizeName?: string;
 }
 
 export default function VideoGen() {
@@ -32,6 +39,11 @@ export default function VideoGen() {
   const [duration, setDuration] = useState(6);
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [currentJob, setCurrentJob] = useState<VideoJob | null>(null);
+
+  // Resize modal state
+  const [showResizeModal, setShowResizeModal] = useState(false);
+  const [selectedVideoForResize, setSelectedVideoForResize] = useState<VideoJob | null>(null);
+  const [selectedResizeSizes, setSelectedResizeSizes] = useState<string[]>([]);
 
   // Mutations
   const uploadKeyframes = useMutation({
@@ -99,6 +111,39 @@ export default function VideoGen() {
       toast({
         variant: 'destructive',
         title: 'Generation failed',
+        description: error.message,
+      });
+    },
+  });
+
+  // Resize video mutation
+  const resizeVideoMutation = useMutation({
+    mutationFn: async (params: { sourceJobId: string; targetSizes: string[] }) => {
+      const response = await fetch('/api/video/resize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Resize failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Resize jobs started',
+        description: `Creating ${data.created} video size(s). Check back in about ${Math.round(data.created * 70)} seconds.`,
+      });
+      setShowResizeModal(false);
+      setSelectedResizeSizes([]);
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Resize failed',
         description: error.message,
       });
     },
@@ -484,6 +529,16 @@ export default function VideoGen() {
                   <Download className="h-4 w-4 mr-2" />
                   Download Video
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedVideoForResize(currentJob);
+                    setShowResizeModal(true);
+                  }}
+                >
+                  <FileVideo className="h-4 w-4 mr-2" />
+                  Create Other Sizes
+                </Button>
                 <Button variant="outline" onClick={handleReset}>
                   Generate Another
                 </Button>
@@ -508,6 +563,103 @@ export default function VideoGen() {
           )}
         </div>
       </main>
+
+      {/* Video Resize Modal */}
+      <Dialog open={showResizeModal} onOpenChange={setShowResizeModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Other Video Sizes</DialogTitle>
+            <DialogDescription>
+              Select social media formats to create resized versions of this video.
+              AI will intelligently adapt the aspect ratio.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Size Selection Grid */}
+            <div className="grid grid-cols-1 gap-2">
+              {videoSizePresets.map((preset) => {
+                const isSelected = selectedResizeSizes.includes(preset.name);
+                const isCurrent = selectedVideoForResize?.aspectRatio === preset.aspectRatio;
+
+                if (isCurrent) return null; // Don't show current size
+
+                return (
+                  <button
+                    key={preset.name}
+                    onClick={() => {
+                      setSelectedResizeSizes(prev =>
+                        isSelected
+                          ? prev.filter(s => s !== preset.name)
+                          : [...prev, preset.name]
+                      );
+                    }}
+                    className={cn(
+                      'flex items-center justify-between p-3 rounded-lg border-2 transition-all text-left',
+                      isSelected
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        'w-4 h-4 rounded border-2 flex items-center justify-center',
+                        isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
+                      )}>
+                        {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                      </div>
+                      <div>
+                        <div className="font-medium">{preset.platform} - {preset.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {preset.width}x{preset.height} ({preset.aspectRatio})
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      ~$0.36 • 70s
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Cost Estimate */}
+            {selectedResizeSizes.length > 0 && (
+              <Card className="p-3 bg-muted">
+                <p className="text-sm">
+                  <strong>Estimated:</strong> ${(selectedResizeSizes.length * 0.36).toFixed(2)} • ~{Math.round(selectedResizeSizes.length * 70)} seconds
+                </p>
+              </Card>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResizeModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedVideoForResize) {
+                  resizeVideoMutation.mutate({
+                    sourceJobId: selectedVideoForResize.jobId,
+                    targetSizes: selectedResizeSizes,
+                  });
+                }
+              }}
+              disabled={selectedResizeSizes.length === 0 || resizeVideoMutation.isPending}
+            >
+              {resizeVideoMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>Create {selectedResizeSizes.length} Size(s)</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

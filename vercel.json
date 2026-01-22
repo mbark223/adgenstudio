@@ -6,6 +6,7 @@
   "rewrites": [
     { "source": "/api/video/upload-keyframes", "destination": "/api/video/upload-keyframes" },
     { "source": "/api/video/generate", "destination": "/api/video/generate" },
+    { "source": "/api/video/resize", "destination": "/api/video/resize" },
     { "source": "/api/video/:id/status", "destination": "/api/video/[id]/status" },
     { "source": "/api/projects/:id", "destination": "/api/projects/[id]" },
     { "source": "/api/variations/:id", "destination": "/api/variations/[id]" },

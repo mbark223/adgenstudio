@@ -424,7 +424,7 @@ export const videoJobSchema = z.object({
   lastFrameUrl: z.string(),
   prompt: z.string().optional(),
   duration: z.number().default(6),
-  aspectRatio: z.enum(['16:9', '9:16']).default('16:9'),
+  aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:5', '3:4', '4:3', '9:21', '21:9']).default('16:9'),
   status: z.enum(['processing', 'completed', 'failed']),
   videoUrl: z.string().optional(),
   thumbnailUrl: z.string().optional(),
@@ -432,12 +432,38 @@ export const videoJobSchema = z.object({
   progress: z.number().optional(),
   createdAt: z.string(),
   completedAt: z.string().optional(),
+  resizedFrom: z.string().optional(),
+  targetPlatform: z.string().optional(),
+  targetSizeName: z.string().optional(),
+  resizeMethod: z.enum(['ai_reframe', 'crop', 'letterbox']).optional(),
 });
 
 export type VideoJob = z.infer<typeof videoJobSchema>;
 
 export const insertVideoJobSchema = videoJobSchema.omit({ id: true, createdAt: true });
 export type InsertVideoJob = z.infer<typeof insertVideoJobSchema>;
+
+// Video size presets for social media platforms
+export const videoSizePresetSchema = z.object({
+  platform: z.string(),
+  name: z.string(),
+  width: z.number(),
+  height: z.number(),
+  aspectRatio: z.string(),
+});
+
+export type VideoSizePreset = z.infer<typeof videoSizePresetSchema>;
+
+export const videoSizePresets: VideoSizePreset[] = [
+  { platform: 'Instagram', name: 'Story/Reel', width: 1080, height: 1920, aspectRatio: '9:16' },
+  { platform: 'Instagram', name: 'Feed Square', width: 1080, height: 1080, aspectRatio: '1:1' },
+  { platform: 'Instagram', name: 'Feed Landscape', width: 1920, height: 1080, aspectRatio: '16:9' },
+  { platform: 'TikTok', name: 'Vertical Video', width: 1080, height: 1920, aspectRatio: '9:16' },
+  { platform: 'YouTube', name: 'Standard', width: 1920, height: 1080, aspectRatio: '16:9' },
+  { platform: 'YouTube', name: 'Shorts', width: 1080, height: 1920, aspectRatio: '9:16' },
+  { platform: 'Snapchat', name: 'Snap Ad', width: 1080, height: 1920, aspectRatio: '9:16' },
+  { platform: 'Twitter', name: 'Standard', width: 1280, height: 720, aspectRatio: '16:9' },
+];
 
 // User schema (kept for compatibility)
 export const userSchema = z.object({
